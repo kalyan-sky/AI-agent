@@ -61,9 +61,10 @@ resource "google_secret_manager_secret_iam_member" "agent_service_reads_external
   member    = "serviceAccount:${google_service_account.agent_service.email}"
 }
 
-# mock-enterprise's invoker policy lives in cloud_run.tf next to its
-# ingress setting — see that file's comment for why it's allUsers-invoker
-# + INGRESS_TRAFFIC_INTERNAL_ONLY rather than a per-service-account grant.
+# mock-enterprise's invoker policy (scoped to agent_service's own service
+# account, not allUsers) lives in cloud_run.tf next to its ingress
+# setting and the env var that makes agent-service actually present a
+# matching identity token.
 
 # --- Artifact Registry: both Cloud Run services need to pull their image
 

@@ -53,9 +53,15 @@ project this size. See "Cost model" below for what that leaves.
   5432/6379/6333/5678 despite having a public IP.
 - **Secret Manager** holds every credential (see "Secrets" below);
   nothing is baked into an image or committed.
-- **Workload Identity Federation** (`iam.tf`) lets GitHub Actions deploy
-  without ever minting a service-account key — Phase 20-21 wires the
-  actual CI/CD workflow up to it.
+- **mock-enterprise's invoker IAM binding is scoped to agent-service's
+  own service account**, not `allUsers` — agent-service's outbound HTTP
+  client (`app/tools/http.py`) attaches a Cloud Run identity token to
+  every call there, audience-matched via the `GCP_ID_TOKEN_AUDIENCE` env
+  var this config sets. Locally/in tests, that env var is unset, so the
+  client never even attempts to reach a (nonexistent) metadata server.
+- **Workload Identity Federation** (`iam.tf`) lets GitHub Actions
+  (`.github/workflows/cd-staging.yml`) deploy without ever minting a
+  service-account key.
 
 ## Cost model
 
@@ -80,18 +86,6 @@ stop resources on their own.
   creates real (if free-tier) billable resources. See "Validating this
   config" below for exactly what *was* verified here versus what you
   still need to do yourself.
-- **Does not IAM-gate mock-enterprise to agent-service's specific
-  identity.** It relies on `ingress = INGRESS_TRAFFIC_INTERNAL_ONLY`
-  (network-level: unreachable from the public internet at all) plus an
-  `allUsers` invoker grant, rather than restricting invocation to
-  agent-service's service account specifically. The tighter version
-  requires agent-service's outbound HTTP client to attach a Cloud Run
-  identity token on every call to mock-enterprise — real, worthwhile
-  app-code work, deliberately deferred to Phase 20-21 (GCP security
-  hardening) rather than done as a drive-by change during this
-  infra-focused phase. mock-enterprise has no auth of its own either way
-  (it's a self-contained mock with no real data), so the current network
-  boundary is a reasonable interim state, not a hidden gap.
 - **Does not use a remote (GCS) state backend.** Local state
   (`terraform.tfstate`, git-ignored) avoids bootstrapping and paying for
   a state bucket before Terraform can manage anything else. Fine for one

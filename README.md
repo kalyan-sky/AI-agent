@@ -7,8 +7,9 @@ enterprise runbooks (Qdrant + Hugging Face embeddings), tool use against a
 mock enterprise API (service health, deployments, tickets, incidents),
 PostgreSQL-backed conversation memory, human-in-the-loop approval for risky
 actions, and self-hosted n8n as the automation front door. Deployable to GCP
-(Cloud Run + Cloud SQL + Compute Engine) via Terraform, with CI/CD in GitHub
-Actions.
+(Cloud Run + Compute Engine, deliberately **not** Cloud SQL — see
+`infrastructure/terraform/README.md` for the cost reasoning) via Terraform,
+with CI/CD in GitHub Actions.
 
 Full documentation set (architecture, API, security, deployment, interview
 guide) lands as the project reaches later build phases — see `architecture/`
@@ -25,7 +26,12 @@ what's built and how to run it right now.
 | 4-5 | RAG ingestion pipeline (9 runbooks -> Qdrant), embeddings, notebooks | ✅ done |
 | 6-7 | LangGraph agent, ReAct planning, 9 allowlisted tools | ✅ done |
 | 8-9 | Postgres conversation memory, agent/tool execution audit trail, human-approval workflow | ✅ done |
-| 10-27 | n8n, remaining DB/security work, tests, Docker, GCP, Terraform, CI/CD, docs | planned |
+| 10-11 | n8n custom node + 5 orchestration workflows | ✅ done |
+| 12-13 | Security hardening (fail-fast config, rate limiting, security headers) + DB indexing | ✅ done |
+| 14-16 | Error handling, Prometheus metrics, DB/Qdrant failure-path tests | ✅ done |
+| 17-19 | Docker, GCP architecture, Terraform (no Cloud SQL, no VPC connector) | ✅ done |
+| 20-21 | CI/CD (GitHub Actions) + GCP security (identity-token service-to-service auth) | 🚧 in progress |
+| 22-27 | Docs, diagrams, demo scenarios, failure injection, eval, readiness checklist | planned |
 
 Branching: per-phase feature branches merged into `main`; `main` deploys to
 staging once the deployment phases land, after which ongoing work moves to
@@ -101,7 +107,10 @@ $ curl -s localhost:8000/ready
 ]}
 
 $ cd agent-service && python -m pytest -q
-4 passed
+65 passed
+
+$ cd mock-enterprise && python -m pytest -q
+9 passed
 ```
 
 ## Tests
@@ -109,3 +118,17 @@ $ cd agent-service && python -m pytest -q
 ```
 make test
 ```
+
+## CI/CD
+
+`.github/workflows/ci.yml` runs on every push/PR: lint + typecheck + test
+for both services (against a real Postgres/Redis service container, not
+mocks), a Docker build (no push) of both images, `terraform fmt`/`validate`
+for `infrastructure/terraform`, and structural validation + a real `tsc`
+compile for the n8n workflows/custom node.
+
+`.github/workflows/cd-staging.yml` deploys to Cloud Run once CI has gone
+green on `main` — never from an arbitrary branch or an unverified commit.
+Authenticates via Workload Identity Federation (no service-account key);
+see `infrastructure/terraform/README.md` for the one-time setup (the repo
+variables it needs come straight out of `terraform apply`'s outputs).

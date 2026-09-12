@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from app.services import incident_service
+from app.tools import http
 
 
 def _response(status_code: int, json_body: dict | None = None) -> httpx.Response:
@@ -31,9 +31,7 @@ async def test_get_ticket_success(client, viewer_headers):
         "created_at": "2026-09-10T14:32:00Z",
         "updated_at": "2026-09-10T14:32:00Z",
     }
-    with patch.object(
-        incident_service, "_get", new=AsyncMock(return_value=_response(200, fake_ticket))
-    ):
+    with patch.object(http, "get", new=AsyncMock(return_value=_response(200, fake_ticket))):
         resp = await client.get("/api/v1/tickets/TICKET-1001", headers=viewer_headers)
     assert resp.status_code == 200
     assert resp.json()["ticket_id"] == "TICKET-1001"
@@ -41,7 +39,7 @@ async def test_get_ticket_success(client, viewer_headers):
 
 @pytest.mark.asyncio
 async def test_get_ticket_not_found(client, viewer_headers):
-    with patch.object(incident_service, "_get", new=AsyncMock(return_value=_response(404))):
+    with patch.object(http, "get", new=AsyncMock(return_value=_response(404))):
         resp = await client.get("/api/v1/tickets/NOPE", headers=viewer_headers)
     assert resp.status_code == 404
 
@@ -49,9 +47,7 @@ async def test_get_ticket_not_found(client, viewer_headers):
 @pytest.mark.asyncio
 async def test_get_ticket_upstream_unavailable(client, viewer_headers):
     with patch.object(
-        incident_service,
-        "_get",
-        new=AsyncMock(side_effect=httpx.ConnectError("connection refused")),
+        http, "get", new=AsyncMock(side_effect=httpx.ConnectError("connection refused"))
     ):
         resp = await client.get("/api/v1/tickets/TICKET-1001", headers=viewer_headers)
     assert resp.status_code == 503

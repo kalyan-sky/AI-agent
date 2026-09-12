@@ -5,8 +5,39 @@ they're retried more conservatively (or not at all for PATCH, matching
 the existing ticket-update semantics).
 """
 
+import asyncio
+
 import httpx
+import structlog
+from google.auth.exceptions import DefaultCredentialsError
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2.id_token import fetch_id_token
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+logger = structlog.get_logger(__name__)
+
+
+async def _auth_headers(audience: str) -> dict[str, str]:
+    """A Cloud Run identity token as an Authorization header, or {} —
+    when `audience` is unset (the default everywhere except a real GCP
+    deployment; see Settings.gcp_id_token_audience), or when a token
+    can't be obtained because there's no metadata server to ask (local
+    dev, tests, CI). Only that specific "can't get a token" failure is
+    swallowed here — a real 401/403 from mock-enterprise itself still
+    surfaces normally as an HTTP error response, not from this function.
+
+    fetch_id_token is a blocking call (it's the synchronous google-auth
+    library) — run in a thread so it can't stall this async function's
+    event loop.
+    """
+    if not audience:
+        return {}
+    try:
+        token = await asyncio.to_thread(fetch_id_token, GoogleAuthRequest(), audience)
+        return {"Authorization": f"Bearer {token}"}
+    except DefaultCredentialsError as exc:
+        logger.warning("gcp_identity_token_unavailable", audience=audience, error=str(exc))
+        return {}
 
 
 @retry(
@@ -15,9 +46,10 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
     wait=wait_exponential(multiplier=0.2, max=2),
     retry=retry_if_exception_type(httpx.TransportError),
 )
-async def get(url: str, timeout_s: float) -> httpx.Response:
+async def get(url: str, timeout_s: float, audience: str = "") -> httpx.Response:
+    headers = await _auth_headers(audience)
     async with httpx.AsyncClient(timeout=timeout_s) as client:
-        return await client.get(url)
+        return await client.get(url, headers=headers)
 
 
 @retry(
@@ -26,11 +58,15 @@ async def get(url: str, timeout_s: float) -> httpx.Response:
     wait=wait_exponential(multiplier=0.2, max=2),
     retry=retry_if_exception_type(httpx.TransportError),
 )
-async def post(url: str, json_body: dict, timeout_s: float) -> httpx.Response:
+async def post(url: str, json_body: dict, timeout_s: float, audience: str = "") -> httpx.Response:
+    headers = await _auth_headers(audience)
     async with httpx.AsyncClient(timeout=timeout_s) as client:
-        return await client.post(url, json=json_body)
+        return await client.post(url, json=json_body, headers=headers)
 
 
-async def patch(url: str, json_body: dict, timeout_s: float) -> httpx.Response:
+async def patch(
+    url: str, json_body: dict, timeout_s: float, audience: str = ""
+) -> httpx.Response:
+    headers = await _auth_headers(audience)
     async with httpx.AsyncClient(timeout=timeout_s) as client:
-        return await client.patch(url, json=json_body)
+        return await client.patch(url, json=json_body, headers=headers)
