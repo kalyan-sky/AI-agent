@@ -1,14 +1,16 @@
 """Top-level API routes.
 
 Route handlers stay thin: validate input, delegate to `app.services.*`,
-return a schema. `/health` and `/ready` never require auth (they're
-probed by orchestrators/load balancers); every other endpoint requires at
-least `viewer`.
+return a schema. `/health`, `/ready`, and `/metrics` never require auth
+(they're probed by orchestrators/load balancers and scraped by
+Prometheus); every other endpoint requires at least `viewer`.
 """
 
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.dependencies import (
     check_mock_enterprise,
@@ -34,6 +36,13 @@ from app.security.rate_limit import enforce_rate_limit
 from app.services import agent_service, approval_service, incident_service, rag_service
 
 router = APIRouter()
+
+
+@router.get("/metrics", tags=["system"])
+async def metrics() -> Response:
+    """Prometheus scrape target. Unauthenticated like /health and /ready —
+    see app/observability/metrics.py for why."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @router.get("/health", response_model=HealthResponse, tags=["system"])
