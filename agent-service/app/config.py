@@ -9,6 +9,7 @@ is a pure configuration change — never a code change.
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -74,6 +75,11 @@ class Settings(BaseSettings):
     agent_timeout_s: int = 90
     agent_min_confidence: float = 0.4
 
+    # Rate limiting (Redis-backed fixed window, keyed by API key — see
+    # app/security/rate_limit.py) for the LLM/embedding-calling endpoints
+    rate_limit_requests: int = 60
+    rate_limit_window_s: int = 60
+
     # Failure injection (never true in prod)
     failure_injection_enabled: bool = False
     failure_injection_target: str = ""
@@ -81,6 +87,38 @@ class Settings(BaseSettings):
     # GCP (informational; used by infra tooling, not runtime logic)
     gcp_project_id: str = ""
     gcp_region: str = "us-central1"
+
+    @model_validator(mode="after")
+    def _refuse_insecure_config_outside_local(self) -> "Settings":
+        """Fail fast at startup rather than silently running dev/insecure
+        config in a real environment — a wrong env var here should crash
+        the process on boot, not surface as a mysterious auth failure or,
+        worse, an unintentionally open endpoint in staging/prod."""
+        if self.environment == "local":
+            return self
+
+        problems: list[str] = []
+        if self.jwt_secret_key == "change-me-in-real-deployments":
+            problems.append("JWT_SECRET_KEY is still the insecure default")
+        if not self.api_keys.strip():
+            problems.append("API_KEYS is empty")
+        if "change-me" in self.database_url:
+            problems.append("DATABASE_URL still contains the placeholder password")
+
+        provider_key = {
+            "anthropic": self.anthropic_api_key,
+            "openai": self.openai_api_key,
+            "gemini": self.google_api_key,
+        }[self.llm_provider]
+        if not provider_key:
+            problems.append(f"LLM_PROVIDER is {self.llm_provider!r} but its API key is empty")
+
+        if problems:
+            raise ValueError(
+                f"refusing to start in environment={self.environment!r} with insecure "
+                f"config: {'; '.join(problems)}"
+            )
+        return self
 
 
 @lru_cache
