@@ -24,12 +24,21 @@ MAX_HISTORY_CHARS = 4000
 
 async def load_conversation_context(conversation_id: str, settings: Settings) -> str:
     """A compact text block of prior turns for this conversation, or ""
-    if there's no history yet (first turn)."""
+    if there's no history yet (first turn) — or if Postgres itself is
+    unreachable. An incident investigation shouldn't be unable to start
+    just because the memory store is briefly down; it degrades to a
+    single-turn conversation instead of failing the whole request."""
     session_factory = get_session_factory(settings)
-    async with session_factory() as session:
-        messages = await repository.get_recent_messages(
-            session, conversation_id, MAX_HISTORY_MESSAGES
+    try:
+        async with session_factory() as session:
+            messages = await repository.get_recent_messages(
+                session, conversation_id, MAX_HISTORY_MESSAGES
+            )
+    except Exception as exc:  # noqa: BLE001 - degrade to no history, never fail the request
+        logger.error(
+            "conversation_history_unavailable", conversation_id=conversation_id, error=str(exc)
         )
+        return ""
 
     if not messages:
         return ""

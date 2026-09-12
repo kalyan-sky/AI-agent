@@ -38,6 +38,24 @@ async def test_search_returns_empty_for_missing_collection(isolated_settings):
 
 
 @pytest.mark.asyncio
+async def test_search_degrades_to_empty_when_qdrant_is_unreachable():
+    # A real (non-local-mode) client pointed at a closed port — Qdrant's
+    # own HTTP client refuses this immediately, no mocking needed.
+    _cached_client.cache_clear()
+    settings = Settings(
+        qdrant_url="http://127.0.0.1:1",
+        qdrant_collection="test_collection",
+        embedding_provider="local-hash",
+        embedding_dim=64,
+    )
+    try:
+        result = await rag_service.search(RagSearchRequest(query="anything"), settings)
+    finally:
+        _cached_client.cache_clear()
+    assert result.results == []
+
+
+@pytest.mark.asyncio
 async def test_search_returns_hits_after_ingestion(isolated_settings):
     from app.rag.qdrant import get_client
 

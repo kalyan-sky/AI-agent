@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from app.agent.policies import RiskTier, requires_approval
 from app.agent.state import ToolCallRecord
 from app.config import Settings
+from app.observability.metrics import tool_calls_total
 from app.tools.base import Tool
 from app.tools.deployment import GetDeploymentStatusTool
 from app.tools.gcp import GetGcpServiceStatusTool
@@ -49,6 +50,24 @@ def build_tool_registry(settings: Settings) -> dict[str, Tool]:
 
 
 async def execute(
+    tool_name: str | None,
+    raw_arguments: dict,
+    tools_by_name: dict[str, Tool],
+    *,
+    bypass_approval: bool = False,
+) -> ToolCallRecord:
+    """Thin metrics wrapper around `_execute` — every outcome (gated,
+    timed out, failed, executed) has its own early return below, so
+    recording the metric once here, on the resulting record, is simpler
+    than instrumenting each branch individually."""
+    record = await _execute(
+        tool_name, raw_arguments, tools_by_name, bypass_approval=bypass_approval
+    )
+    tool_calls_total.labels(tool=record.tool or "unspecified", status=record.status).inc()
+    return record
+
+
+async def _execute(
     tool_name: str | None,
     raw_arguments: dict,
     tools_by_name: dict[str, Tool],
