@@ -5,6 +5,7 @@ Kept separate from `services/rag_service.py` so the API-shaped concerns
 the retrieval mechanism, and so the ingestion pipeline and the agent's
 future `search_knowledge` tool can both call this directly.
 """
+
 from qdrant_client.http import models as qmodels
 
 from app.config import Settings

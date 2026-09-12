@@ -4,6 +4,7 @@ Delegates the actual vector search to app/rag/retriever.py and only
 handles the API-shaped decision: a missing collection (nothing ingested
 yet) returns an empty result set rather than erroring.
 """
+
 import structlog
 
 from app.api.schemas import RagChunkResult, RagSearchRequest, RagSearchResponse

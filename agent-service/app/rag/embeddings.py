@@ -16,6 +16,7 @@ code change at any call site:
   exercised end to end without external network access — it is not a
   substitute for real embeddings in an actual deployment.
 """
+
 import hashlib
 from functools import lru_cache
 

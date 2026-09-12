@@ -1,4 +1,5 @@
 """FastAPI application entrypoint."""
+
 import time
 from contextlib import asynccontextmanager
 

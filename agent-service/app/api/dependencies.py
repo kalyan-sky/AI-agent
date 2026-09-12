@@ -4,6 +4,7 @@ Readiness probes are intentionally lightweight, direct connection checks
 (no ORM, no connection pool reuse) so `/ready` reflects real reachability
 of each dependency rather than the health of an internal pool.
 """
+
 import time
 import uuid
 from contextvars import ContextVar
@@ -32,9 +33,7 @@ async def check_postgres(settings: Settings) -> ComponentStatus:
         conn = await asyncpg.connect(dsn, timeout=3)
         await conn.execute("SELECT 1")
         await conn.close()
-        return ComponentStatus(
-            name="postgres", status="ok", latency_ms=_ms(start)
-        )
+        return ComponentStatus(name="postgres", status="ok", latency_ms=_ms(start))
     except Exception as exc:  # noqa: BLE001 - readiness probe must never raise
         return ComponentStatus(
             name="postgres", status="down", detail=str(exc), latency_ms=_ms(start)
@@ -48,9 +47,7 @@ async def check_redis(settings: Settings) -> ComponentStatus:
         await client.ping()
         return ComponentStatus(name="redis", status="ok", latency_ms=_ms(start))
     except Exception as exc:  # noqa: BLE001
-        return ComponentStatus(
-            name="redis", status="down", detail=str(exc), latency_ms=_ms(start)
-        )
+        return ComponentStatus(name="redis", status="down", detail=str(exc), latency_ms=_ms(start))
     finally:
         await client.aclose()
 
@@ -67,9 +64,7 @@ async def check_qdrant(settings: Settings) -> ComponentStatus:
             resp.raise_for_status()
         return ComponentStatus(name="qdrant", status="ok", latency_ms=_ms(start))
     except Exception as exc:  # noqa: BLE001
-        return ComponentStatus(
-            name="qdrant", status="down", detail=str(exc), latency_ms=_ms(start)
-        )
+        return ComponentStatus(name="qdrant", status="down", detail=str(exc), latency_ms=_ms(start))
 
 
 async def check_mock_enterprise(settings: Settings) -> ComponentStatus:

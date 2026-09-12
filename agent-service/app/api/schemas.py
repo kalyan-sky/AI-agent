@@ -4,6 +4,7 @@ Kept separate from route handlers so schemas can be imported by tests,
 n8n integration docs, and the OpenAPI spec without pulling in FastAPI
 routing concerns.
 """
+
 from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field

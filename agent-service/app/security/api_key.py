@@ -6,6 +6,7 @@ talking to n8n / internal callers. `oauth.py` documents how a real OAuth2
 client-credentials flow would plug in alongside this without changing the
 route-level dependency shape.
 """
+
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -47,7 +48,7 @@ def get_current_principal(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    api_key = auth_header[len("bearer "):].strip()
+    api_key = auth_header[len("bearer ") :].strip()
     key_map = _load_key_map(settings.api_keys)
     role = key_map.get(api_key)
     if role is None:

@@ -5,6 +5,7 @@ Every log line is a JSON object carrying whatever contextvars are bound
 Never bind or log secrets, API keys, tokens, or passwords — see
 `SENSITIVE_KEYS` which is scrubbed defensively before emission.
 """
+
 import logging
 import sys
 from typing import Any

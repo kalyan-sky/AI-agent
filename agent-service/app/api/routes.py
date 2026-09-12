@@ -5,6 +5,7 @@ return a schema. `/health` and `/ready` never require auth (they're
 probed by orchestrators/load balancers); every other endpoint requires at
 least `viewer`.
 """
+
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -56,8 +57,10 @@ async def ready(settings: Settings = Depends(get_settings)) -> ReadinessResponse
     tags=["agent"],
     dependencies=[Depends(require_role(Role.viewer))],
 )
-async def run_agent(body: AgentRunRequest) -> AgentRunResponse:
-    return await agent_service.run(body)
+async def run_agent(
+    body: AgentRunRequest, settings: Settings = Depends(get_settings)
+) -> AgentRunResponse:
+    return await agent_service.run(body, settings)
 
 
 @router.post(
@@ -78,9 +81,7 @@ async def search_rag(
     tags=["tickets"],
     dependencies=[Depends(require_role(Role.viewer))],
 )
-async def get_ticket(
-    ticket_id: str, settings: Settings = Depends(get_settings)
-) -> TicketResponse:
+async def get_ticket(ticket_id: str, settings: Settings = Depends(get_settings)) -> TicketResponse:
     try:
         return await incident_service.get_ticket(ticket_id, settings)
     except incident_service.TicketNotFoundError as exc:
