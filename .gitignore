@@ -29,10 +29,12 @@ terraform.tfvars
 
 # Terraform
 infrastructure/terraform/.terraform/
-infrastructure/terraform/.terraform.lock.hcl
 infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
 infrastructure/terraform/tfplan
+# .terraform.lock.hcl is deliberately NOT ignored — committing it pins
+# provider versions so `terraform init` is reproducible in CI and for
+# every other contributor, per Terraform's own recommendation.
 
 # Data / local state
 *.db
