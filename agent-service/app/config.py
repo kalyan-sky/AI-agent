@@ -5,6 +5,7 @@ database, cache, downstream APIs) is configured here so that swapping a
 provider or pointing at a different environment (local/dev/staging/prod)
 is a pure configuration change — never a code change.
 """
+
 from functools import lru_cache
 from typing import Literal
 
@@ -28,9 +29,13 @@ class Settings(BaseSettings):
     jwt_issuer: str = "ai-ops-agent"
     oauth_token_url: str = ""
 
-    # LLM provider
+    # LLM provider — primary + optional fallback (used only if the primary
+    # fails after its own retries; see app/agent/graph.py). Cheapest-first
+    # default: Claude Haiku 4.5 primary, empty fallback until you set one.
     llm_provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
-    llm_model: str = "claude-sonnet-5"
+    llm_model: str = "claude-haiku-4-5"
+    llm_fallback_provider: Literal["anthropic", "openai", "gemini", ""] = ""
+    llm_fallback_model: str = ""
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"

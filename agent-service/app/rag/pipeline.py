@@ -4,6 +4,7 @@ Run via `python -m app.rag.pipeline` (wired to `make rag-ingest`).
 Idempotent: drops and recreates the collection each run so re-ingesting
 after editing a runbook never leaves stale chunks behind.
 """
+
 import logging
 from pathlib import Path
 

@@ -5,6 +5,7 @@ backoff) is safe here; every network call carries an explicit timeout
 from Settings. Upstream 404 and unreachable-upstream are distinguished so
 the route can map them to the right HTTP status instead of a generic 500.
 """
+
 import httpx
 import structlog
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential

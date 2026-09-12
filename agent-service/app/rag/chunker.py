@@ -6,6 +6,7 @@ boundary doesn't land mid-sentence when a paragraph fits within
 character overlap. Sizes are in characters, not tokens — simple and
 deterministic, no tokenizer needed at chunk time.
 """
+
 from dataclasses import dataclass
 
 

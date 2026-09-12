@@ -18,6 +18,7 @@ code, and provides the JWT validation used if/when `OAUTH_TOKEN_URL` is set:
 We do not fetch tokens ourselves here (this service is a resource server,
 not an OAuth client) and we never accept an unverified/`alg=none` JWT.
 """
+
 from jose import JWTError, jwt
 
 from app.config import Settings

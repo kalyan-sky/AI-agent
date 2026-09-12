@@ -6,6 +6,7 @@ sandboxed/dev environments without a Qdrant server, at the cost of only
 one process being able to open that path at a time. Production points
 `QDRANT_URL` at a real server instead and leaves the local path empty.
 """
+
 from functools import lru_cache
 
 from qdrant_client import QdrantClient

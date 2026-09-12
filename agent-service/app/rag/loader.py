@@ -3,6 +3,7 @@
 Frontmatter carries the metadata ingestion attaches to every chunk
 (title, category, service, environment) so retrieval can filter on it.
 """
+
 from dataclasses import dataclass
 from pathlib import Path
 

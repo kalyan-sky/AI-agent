@@ -7,6 +7,7 @@ is deferred to break the api_key.py <-> authorization.py import cycle
 (api_key.py needs `Role` from here; this module needs the principal
 dependency from there).
 """
+
 from enum import IntEnum
 
 from fastapi import Depends, HTTPException, status
