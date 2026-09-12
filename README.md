@@ -20,8 +20,13 @@ what's built and how to run it right now.
 | Phase | Area | Status |
 |---|---|---|
 | 1 | Local dev environment (Docker Compose + native fallback) | ✅ done |
-| 2 | FastAPI service (routes/schemas/security) | in progress |
-| 3-27 | Mock enterprise API, RAG, agent, memory, n8n, security, DB, tests, Docker, GCP, Terraform, CI/CD, docs | planned |
+| 2 | FastAPI service (agent/RAG/tickets routes, API-key auth, RBAC) | ✅ done |
+| 3 | Mock enterprise API (service catalog, tickets, incidents, seedable scenarios) | ✅ done |
+| 4-27 | RAG ingestion, agent graph, memory, n8n, DB models, tests, Docker, GCP, Terraform, CI/CD, docs | planned |
+
+Branching: per-phase feature branches merged into `main`; `main` deploys to
+staging once the deployment phases land, after which ongoing work moves to
+a `dev` branch cut from `main`.
 
 ## Repository layout
 
