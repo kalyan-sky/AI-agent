@@ -10,7 +10,7 @@ for svc in agent-service mock-enterprise; do
   # shellcheck disable=SC1091
   source .venv/bin/activate
   pip install --upgrade pip -q
-  pip install -r requirements.txt -q
+  pip install -r requirements-dev.txt -q
   deactivate
 done
 

@@ -1,25 +1,30 @@
-"""In-memory ticket store.
-
-Minimal slice needed for agent-service's GET /api/v1/tickets/{id} proxy.
-The full incident/ticket catalog (create/update, incidents, seedable
-failure scenarios) is a later build phase — this only needs to answer
-reads for now.
-"""
+"""In-memory ticket store: GET/POST/PATCH /tickets."""
 from datetime import UTC, datetime
+from itertools import count
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter()
 
+_ticket_sequence = count(1002)
 
-class Ticket(BaseModel):
-    ticket_id: str
+
+class TicketCreate(BaseModel):
     title: str
     description: str
-    status: str = "open"
     priority: str = "medium"
     service: str | None = None
+
+
+class TicketUpdate(BaseModel):
+    status: str | None = None
+    priority: str | None = None
+
+
+class Ticket(TicketCreate):
+    ticket_id: str
+    status: str = "open"
     created_at: datetime
     updated_at: datetime
 
@@ -47,3 +52,23 @@ async def get_ticket(ticket_id: str) -> Ticket:
     if ticket is None:
         raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} not found")
     return ticket
+
+
+@router.post("/tickets", response_model=Ticket, status_code=201)
+async def create_ticket(body: TicketCreate) -> Ticket:
+    now = datetime.now(UTC)
+    ticket_id = f"TICKET-{next(_ticket_sequence)}"
+    ticket = Ticket(ticket_id=ticket_id, created_at=now, updated_at=now, **body.model_dump())
+    _TICKETS[ticket_id] = ticket
+    return ticket
+
+
+@router.patch("/tickets/{ticket_id}", response_model=Ticket)
+async def update_ticket(ticket_id: str, body: TicketUpdate) -> Ticket:
+    ticket = _TICKETS.get(ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} not found")
+    updates = body.model_dump(exclude_unset=True)
+    updated = ticket.model_copy(update={**updates, "updated_at": datetime.now(UTC)})
+    _TICKETS[ticket_id] = updated
+    return updated
