@@ -182,9 +182,19 @@ def _truncate(result: dict | None, limit: int = 2000) -> str:
 
 async def run(initial_state: AgentState, settings: Settings) -> AgentState:
     compiled = build_graph(settings)
+    # LangGraph's own recursion_limit counts every node execution across the
+    # whole run, not our domain-level `iterations` counter — one logical
+    # ReAct iteration spans 3-4 nodes (reason_and_act, execute_tool, observe,
+    # occasionally replan), plus fixed upfront overhead (intake,
+    # classify_intent, create_plan) and a final node. Left at LangGraph's
+    # default of 25 this trips *before* our own max_iterations bound does,
+    # surfacing as an unhandled GraphRecursionError instead of a graceful
+    # forced final answer — size it generously off max_iterations instead.
+    recursion_limit = max(50, initial_state.max_iterations * 6 + 10)
     try:
         result = await asyncio.wait_for(
-            compiled.ainvoke(initial_state), timeout=settings.agent_timeout_s
+            compiled.ainvoke(initial_state, config={"recursion_limit": recursion_limit}),
+            timeout=settings.agent_timeout_s,
         )
     except TimeoutError:
         logger.error("agent_wall_clock_timeout", conversation_id=initial_state.conversation_id)

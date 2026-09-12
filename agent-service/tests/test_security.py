@@ -5,6 +5,7 @@ rather than silently falling through to a default role.
 front of it, not the agent graph itself (see tests/test_agent.py for
 that, with a fake LLM).
 """
+
 from unittest.mock import AsyncMock, patch
 
 import pytest

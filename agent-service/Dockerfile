@@ -11,6 +11,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY app ./app
+COPY alembic.ini ./alembic.ini
 
 USER appuser
 

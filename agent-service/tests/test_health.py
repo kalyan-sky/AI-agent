@@ -7,6 +7,7 @@ and once with every dependency check patched to fail, to prove a single
 down dependency correctly flips the aggregate status to "not_ready" instead
 of silently reporting healthy.
 """
+
 from unittest.mock import AsyncMock, patch
 
 import pytest

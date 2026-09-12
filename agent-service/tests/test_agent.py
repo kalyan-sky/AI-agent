@@ -33,6 +33,7 @@ def _settings(**overrides) -> Settings:
     return Settings(
         qdrant_local_path="/tmp/nonexistent-agent-test-qdrant",
         mock_enterprise_base_url="http://127.0.0.1:9",  # nothing listens here
+        database_url="postgresql+asyncpg://aiops:devpassword@127.0.0.1:5432/aiops",
         agent_max_iterations=8,
         agent_timeout_s=10,
         **overrides,
@@ -68,46 +69,26 @@ async def test_agent_completes_with_a_read_only_tool_call():
 async def test_agent_treats_unregistered_tool_as_fail_safe_error():
     script = [
         "incident_investigation",
-        '["rollback"]',
-        '{"thought": "roll it back", "tool": "rollback_deployment", "arguments": {"service": "x"}}',
+        '["do something"]',
+        '{"thought": "try it", "tool": "totally_made_up_tool", "arguments": {}}',
     ]
     with patch("app.agent.graph.build_llm", return_value=FakeLLM(script)):
-        state = AgentState(conversation_id="c1", user_id="u1", message="roll back payment-service")
+        state = AgentState(conversation_id="c1", user_id="u1", message="do the thing")
         final = await run_graph(state, _settings())
 
-    # rollback_deployment isn't a registered tool at all (Phase 6-7 only
-    # ships the 9 tools listed for this phase) -> unknown tool fails safe
+    # A tool name the LLM invented that isn't in the registry fails safe
     # as HIGH_RISK/error rather than silently running something unvetted.
-    assert final.actions[0].tool == "rollback_deployment"
+    assert final.actions[0].tool == "totally_made_up_tool"
     assert final.actions[0].status == "error"
     assert "unknown tool" in (final.actions[0].error or "")
 
 
 @pytest.mark.asyncio
-async def test_agent_needs_approval_for_high_risk_registered_tool(monkeypatch):
-    """A registered HIGH_RISK tool (simulated here since Phase 6-7 doesn't
-    ship one yet — Phase 8-9 adds rollback/restart) must pause for human
-    approval rather than execute, and the graph must stop there.
+async def test_agent_needs_approval_for_high_risk_tool():
+    """rollback_deployment is a real, registered HIGH_RISK tool — the
+    graph must pause for human approval rather than execute it, and stop
+    there (status="needs_approval") without ever calling the tool's run().
     """
-    import app.agent.executor as executor_module
-    from app.agent.policies import RiskTier
-    from app.tools.gcp import GetGcpServiceStatusInput, GetGcpServiceStatusTool
-
-    class FakeHighRiskTool(GetGcpServiceStatusTool):
-        name = "rollback_deployment"
-        risk_tier = RiskTier.HIGH_RISK
-        input_schema = GetGcpServiceStatusInput
-
-    original_build_registry = executor_module.build_tool_registry
-
-    def patched_registry(settings):
-        registry = original_build_registry(settings)
-        registry["rollback_deployment"] = FakeHighRiskTool(settings)
-        return registry
-
-    monkeypatch.setattr(executor_module, "build_tool_registry", patched_registry)
-    monkeypatch.setattr("app.agent.graph.build_tool_registry", patched_registry)
-
     script = [
         "incident_investigation",
         '["rollback"]',
@@ -118,7 +99,26 @@ async def test_agent_needs_approval_for_high_risk_registered_tool(monkeypatch):
         final = await run_graph(state, _settings())
 
     assert final.status == "needs_approval"
+    assert final.actions[0].tool == "rollback_deployment"
     assert final.actions[0].status == "pending_approval"
+    assert final.actions[0].result is None  # never actually executed
+
+
+@pytest.mark.asyncio
+async def test_agent_never_executes_critical_tool_even_if_requested():
+    script = [
+        "incident_investigation",
+        '["delete it"]',
+        '{"thought": "delete it", "tool": "delete_resource", "arguments": {"resource": "prod-db"}}',
+        '{"thought": "done", "final_answer": "cannot delete autonomously", "confidence": 0.9}',
+    ]
+    with patch("app.agent.graph.build_llm", return_value=FakeLLM(script)):
+        state = AgentState(conversation_id="c1", user_id="u1", message="delete prod-db")
+        final = await run_graph(state, _settings())
+
+    assert final.actions[0].tool == "delete_resource"
+    assert final.actions[0].status == "blocked"
+    assert final.actions[0].result is None
 
 
 @pytest.mark.asyncio
@@ -154,6 +154,29 @@ async def test_agent_recovers_from_invalid_json_response():
     assert final.status == "completed"
     assert final.final_answer == "recovered"
     assert any("invalid agent JSON" in e for e in final.errors)
+
+
+@pytest.mark.asyncio
+async def test_agent_never_hits_langgraph_recursion_limit_at_default_max_iterations():
+    """Regression test: LangGraph's own recursion_limit counts every node
+    execution, not our `iterations` counter — one ReAct iteration spans
+    3-4 nodes, so the default max_iterations=8 needs ~30+ node executions
+    and used to blow through LangGraph's default recursion_limit=25 with
+    an unhandled GraphRecursionError before our own iteration cap ever
+    triggered the graceful forced-finalization path (see graph.py's
+    `run()`). Every iteration here returns invalid JSON, forcing the loop
+    to actually run the full max_iterations budget rather than stopping
+    early.
+    """
+    script = ["general", "[]"] + ["not valid json"] * 20
+    with patch("app.agent.graph.build_llm", return_value=FakeLLM(script)):
+        state = AgentState(
+            conversation_id="c1", user_id="u1", message="never resolves", max_iterations=8
+        )
+        final = await run_graph(state, _settings())
+
+    assert final.status == "completed"
+    assert final.iterations >= 8
 
 
 @pytest.mark.asyncio
