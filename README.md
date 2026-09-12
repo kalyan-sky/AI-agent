@@ -22,7 +22,8 @@ what's built and how to run it right now.
 | 1 | Local dev environment (Docker Compose + native fallback) | ✅ done |
 | 2 | FastAPI service (agent/RAG/tickets routes, API-key auth, RBAC) | ✅ done |
 | 3 | Mock enterprise API (service catalog, tickets, incidents, seedable scenarios) | ✅ done |
-| 4-27 | RAG ingestion, agent graph, memory, n8n, DB models, tests, Docker, GCP, Terraform, CI/CD, docs | planned |
+| 4-5 | RAG ingestion pipeline (9 runbooks -> Qdrant), embeddings, notebooks | ✅ done |
+| 6-27 | Agent graph, memory, n8n, DB models, tests, Docker, GCP, Terraform, CI/CD, docs | planned |
 
 Branching: per-phase feature branches merged into `main`; `main` deploys to
 staging once the deployment phases land, after which ongoing work moves to
@@ -60,6 +61,25 @@ via Docker Compose or `npx n8n` wherever full internet egress is available.
 curl localhost:8000/health
 curl localhost:8000/ready
 ```
+
+### RAG
+
+Enterprise runbooks live in `rag/documents/` (Markdown with YAML
+frontmatter for title/category/service/environment). Ingest them into
+Qdrant:
+
+```
+make rag-ingest   # or: cd agent-service && python -m app.rag.pipeline
+```
+
+Embeddings are provider-agnostic (`EMBEDDING_PROVIDER` in `.env`):
+`huggingface` (default, `sentence-transformers`, needs normal internet on
+first run to download the model) or `local-hash` (deterministic,
+zero-network fallback for restricted sandboxes — not a quality
+replacement, see `app/rag/embeddings.py`). See `notebooks/` for
+tokenization/embedding/inference walkthroughs and a real, fully-offline
+retrieval evaluation (`04_rag_evaluation.ipynb`, 100% hit@3 on the bundled
+eval set).
 
 ### Verified locally (native mode)
 

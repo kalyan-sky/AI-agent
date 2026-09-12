@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     llm_max_retries: int = 2
 
     # Embeddings
-    embedding_provider: Literal["huggingface"] = "huggingface"
+    embedding_provider: Literal["huggingface", "local-hash"] = "huggingface"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
     huggingface_api_token: str = ""
@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     qdrant_api_key: str = ""
     qdrant_collection: str = "enterprise_knowledge"
     qdrant_local_path: str = ""
+
+    # RAG ingestion
+    rag_chunk_size: int = 800
+    rag_chunk_overlap: int = 100
 
     # Database
     database_url: str = "postgresql+asyncpg://aiops:change-me@postgres:5432/aiops"
