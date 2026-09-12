@@ -7,8 +7,10 @@ Never bind or log secrets, API keys, tokens, or passwords — see
 """
 import logging
 import sys
+from typing import Any
 
 import structlog
+from structlog.types import EventDict, WrappedLogger
 
 SENSITIVE_KEYS = {
     "api_key",
@@ -21,7 +23,7 @@ SENSITIVE_KEYS = {
 }
 
 
-def _scrub_sensitive(_logger, _method_name, event_dict: dict) -> dict:
+def _scrub_sensitive(_logger: WrappedLogger, _method_name: str, event_dict: EventDict) -> Any:
     for key in list(event_dict.keys()):
         if key.lower() in SENSITIVE_KEYS:
             event_dict[key] = "***redacted***"

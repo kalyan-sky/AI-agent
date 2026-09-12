@@ -37,6 +37,7 @@ infrastructure/terraform/tfplan
 *.db
 *.sqlite3
 qdrant_storage/
+.qdrant_local/
 pgdata/
 n8n_data/
 mock-enterprise/data/*.json
