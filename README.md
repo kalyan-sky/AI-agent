@@ -33,11 +33,16 @@ built and how to run it right now.
 | 14-16 | Error handling, Prometheus metrics, DB/Qdrant failure-path tests | ✅ done |
 | 17-19 | Docker, GCP architecture, Terraform (no Cloud SQL, no VPC connector) | ✅ done |
 | 20-21 | CI/CD (GitHub Actions) + GCP security (identity-token service-to-service auth) | ✅ done |
-| 22-27 | Docs, diagrams, demo scenarios, failure injection, eval, readiness checklist | 🚧 in progress |
+| 22-27 | Docs, diagrams, demo scenarios, failure injection, eval, readiness checklist | ✅ done |
 
-Branching: per-phase feature branches merged into `main`; `main` deploys to
-staging once the deployment phases land, after which ongoing work moves to
-a `dev` branch cut from `main`.
+All 27 planned build phases are now code-complete on `main` (via
+per-phase feature branches). What's left is entirely outside this
+sandbox's reach: a real GCP project with billing enabled. Once you've run
+through `infrastructure/terraform/README.md`'s "Applying for real"
+section against your own project and `main` has an actual staging
+deployment behind it, the natural next step is cutting a `dev` branch
+from `main` for ongoing work, per the branching plan this project
+followed throughout.
 
 ## Repository layout
 
