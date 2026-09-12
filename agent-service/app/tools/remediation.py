@@ -47,6 +47,7 @@ class RollbackDeploymentTool(Tool[RollbackDeploymentInput]):
                 {"scenario": "healthy"},
                 self.timeout_s,
                 audience=self._settings.gcp_id_token_audience,
+                settings=self._settings,
             )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc

@@ -34,7 +34,10 @@ async def get_ticket(ticket_id: str, settings: Settings) -> TicketResponse:
     url = f"{settings.mock_enterprise_base_url}/tickets/{ticket_id}"
     try:
         resp = await http.get(
-            url, settings.mock_enterprise_timeout_s, audience=settings.gcp_id_token_audience
+            url,
+            settings.mock_enterprise_timeout_s,
+            audience=settings.gcp_id_token_audience,
+            settings=settings,
         )
     except httpx.TransportError as exc:
         logger.error("ticket_upstream_unreachable", ticket_id=ticket_id, error=str(exc))

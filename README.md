@@ -11,10 +11,12 @@ actions, and self-hosted n8n as the automation front door. Deployable to GCP
 `infrastructure/terraform/README.md` for the cost reasoning) via Terraform,
 with CI/CD in GitHub Actions.
 
-Full documentation set (architecture, API, security, deployment, interview
-guide) lands as the project reaches later build phases — see `architecture/`
-and the root-level `*.md` files as they're added. This README tracks
-what's built and how to run it right now.
+See `architecture/` for the full documentation set: system diagrams
+(`architecture.md`), request-flow sequence diagrams
+(`sequence-diagrams.md`), a decision log explaining the non-obvious calls
+made throughout (`decisions.md`), and an honest production-readiness
+self-assessment (`readiness-checklist.md`). This README tracks what's
+built and how to run it right now.
 
 ## Status
 
@@ -31,7 +33,7 @@ what's built and how to run it right now.
 | 14-16 | Error handling, Prometheus metrics, DB/Qdrant failure-path tests | ✅ done |
 | 17-19 | Docker, GCP architecture, Terraform (no Cloud SQL, no VPC connector) | ✅ done |
 | 20-21 | CI/CD (GitHub Actions) + GCP security (identity-token service-to-service auth) | ✅ done |
-| 22-27 | Docs, diagrams, demo scenarios, failure injection, eval, readiness checklist | planned |
+| 22-27 | Docs, diagrams, demo scenarios, failure injection, eval, readiness checklist | 🚧 in progress |
 
 Branching: per-phase feature branches merged into `main`; `main` deploys to
 staging once the deployment phases land, after which ongoing work moves to
@@ -89,6 +91,32 @@ tokenization/embedding/inference walkthroughs and a real, fully-offline
 retrieval evaluation (`04_rag_evaluation.ipynb`, 100% hit@3 on the bundled
 eval set).
 
+### Demo scenarios and agent-level eval
+
+```
+make seed        # mix of failure scenarios across several mock-enterprise services
+make agent-test   # run realistic incidents against a live agent-service + print results
+make eval         # behavioral eval — real LLM (small cost) if configured, else a free dry run
+```
+
+`scripts/seed_data.sh` and `tests/demo_scenarios.py` need agent-service +
+mock-enterprise already running (Option A or B above).
+`tests/eval_agent.py` scores the agent's tool selection, confidence, and
+final status against a small battery of incidents — see its own
+docstring for why this isn't run in CI (it costs real LLM calls when a
+key is configured).
+
+### Failure injection
+
+`FAILURE_INJECTION_ENABLED` / `FAILURE_INJECTION_TARGET` in
+`agent-service/.env` deterministically break one dependency at a time —
+`llm_timeout`, `qdrant_down`, `postgres_down`, `enterprise_timeout`, or
+`enterprise_500` — to demonstrate this project's graceful-degradation
+paths live rather than only in pytest. Refused outright outside
+`ENVIRONMENT=local` (see `app/config.py`'s fail-fast validation) — this
+can never accidentally ship active. See `app/testing/failure_injection.py`
+and `tests/test_failure_injection.py`.
+
 ### Verified locally (native mode)
 
 ```
@@ -107,7 +135,7 @@ $ curl -s localhost:8000/ready
 ]}
 
 $ cd agent-service && python -m pytest -q
-65 passed
+73 passed
 
 $ cd mock-enterprise && python -m pytest -q
 9 passed

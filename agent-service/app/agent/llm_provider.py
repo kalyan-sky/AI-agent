@@ -25,6 +25,7 @@ import httpx
 import structlog
 
 from app.config import Settings
+from app.testing.failure_injection import should_inject
 
 logger = structlog.get_logger(__name__)
 
@@ -184,8 +185,24 @@ class FallbackLLM:
             return await self._fallback.complete(system, messages)
 
 
+class _FailureInjectingLLM:
+    """Simulates a total LLM outage — every call raises, as if the
+    provider timed out — rather than actually calling it. Wrapping the
+    primary here (before FallbackLLM) means a configured fallback
+    provider will still take over normally, which is correct behavior
+    but hides the injected failure; demoing this target with no fallback
+    configured is what actually shows the agent's own graceful-failure
+    path (app/services/agent_service.py's status="error" response).
+    """
+
+    async def complete(self, system: str, messages: list[LLMMessage]) -> str:
+        raise LLMTransientError("injected failure: llm_timeout")
+
+
 def build_llm(settings: Settings) -> LLMProvider:
     primary = build_provider(settings.llm_provider, settings.llm_model, settings)
+    if should_inject(settings, "llm_timeout"):
+        primary = _FailureInjectingLLM()
     fallback = None
     if settings.llm_fallback_provider:
         fallback_model = settings.llm_fallback_model or settings.llm_model

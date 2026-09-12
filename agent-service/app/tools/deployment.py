@@ -29,7 +29,10 @@ class GetDeploymentStatusTool(Tool[GetDeploymentStatusInput]):
         url = f"{self._settings.mock_enterprise_base_url}/services/{args.service}/deployment"
         try:
             resp = await http.get(
-                url, self.timeout_s, audience=self._settings.gcp_id_token_audience
+                url,
+                self.timeout_s,
+                audience=self._settings.gcp_id_token_audience,
+                settings=self._settings,
             )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc

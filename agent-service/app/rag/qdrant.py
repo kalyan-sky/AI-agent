@@ -12,6 +12,7 @@ from functools import lru_cache
 from qdrant_client import QdrantClient
 
 from app.config import Settings
+from app.testing.failure_injection import should_inject
 
 
 @lru_cache
@@ -22,4 +23,6 @@ def _cached_client(url: str, api_key: str, local_path: str) -> QdrantClient:
 
 
 def get_client(settings: Settings) -> QdrantClient:
+    if should_inject(settings, "qdrant_down"):
+        raise ConnectionError("injected failure: qdrant_down")
     return _cached_client(settings.qdrant_url, settings.qdrant_api_key, settings.qdrant_local_path)
