@@ -119,6 +119,11 @@ class Settings(BaseSettings):
         if not provider_key:
             problems.append(f"LLM_PROVIDER is {self.llm_provider!r} but its API key is empty")
 
+        if self.failure_injection_enabled:
+            problems.append(
+                "FAILURE_INJECTION_ENABLED must never be true outside environment=local"
+            )
+
         if problems:
             raise ValueError(
                 f"refusing to start in environment={self.environment!r} with insecure "

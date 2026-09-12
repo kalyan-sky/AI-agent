@@ -1,4 +1,4 @@
-.PHONY: install up down logs test lint format rag-ingest seed agent-test clean build deploy db-upgrade db-revision
+.PHONY: install up down logs test lint format rag-ingest seed agent-test eval clean build deploy db-upgrade db-revision
 
 install:
 	./scripts/bootstrap.sh
@@ -37,6 +37,12 @@ seed:
 
 agent-test:
 	cd agent-service && . .venv/bin/activate && python -m tests.demo_scenarios
+
+## Behavioral eval against the real agent graph — see tests/eval_agent.py.
+## Runs against the real configured LLM (small real cost) when an API key
+## is set, otherwise falls back to a FakeLLM dry run (free, mechanics only).
+eval:
+	cd agent-service && . .venv/bin/activate && python -m tests.eval_agent
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

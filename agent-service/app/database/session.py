@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import Settings
+from app.testing.failure_injection import should_inject
 
 
 @lru_cache
@@ -20,5 +21,7 @@ def _cached_engine(database_url: str) -> AsyncEngine:
 
 
 def get_session_factory(settings: Settings) -> async_sessionmaker[AsyncSession]:
+    if should_inject(settings, "postgres_down"):
+        raise ConnectionError("injected failure: postgres_down")
     engine = _cached_engine(settings.database_url)
     return async_sessionmaker(engine, expire_on_commit=False)

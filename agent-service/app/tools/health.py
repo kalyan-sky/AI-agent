@@ -27,7 +27,10 @@ class GetServiceHealthTool(Tool[ServiceNameInput]):
         url = f"{self._settings.mock_enterprise_base_url}/services/{args.service}/health"
         try:
             resp = await http.get(
-                url, self.timeout_s, audience=self._settings.gcp_id_token_audience
+                url,
+                self.timeout_s,
+                audience=self._settings.gcp_id_token_audience,
+                settings=self._settings,
             )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc
@@ -49,7 +52,10 @@ class GetServiceLogsTool(Tool[ServiceNameInput]):
         url = f"{self._settings.mock_enterprise_base_url}/services/{args.service}/logs"
         try:
             resp = await http.get(
-                url, self.timeout_s, audience=self._settings.gcp_id_token_audience
+                url,
+                self.timeout_s,
+                audience=self._settings.gcp_id_token_audience,
+                settings=self._settings,
             )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc

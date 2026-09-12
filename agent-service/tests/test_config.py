@@ -40,6 +40,7 @@ def test_staging_with_secure_config_boots_fine():
         {"api_keys": "   "},
         {"database_url": "postgresql+asyncpg://aiops:change-me@10.0.0.5:5432/aiops"},
         {"anthropic_api_key": ""},
+        {"failure_injection_enabled": True, "failure_injection_target": "llm_timeout"},
     ],
 )
 def test_staging_refuses_to_boot_with_insecure_config(override):
