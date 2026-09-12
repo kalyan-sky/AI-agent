@@ -23,7 +23,9 @@ what's built and how to run it right now.
 | 2 | FastAPI service (agent/RAG/tickets routes, API-key auth, RBAC) | ✅ done |
 | 3 | Mock enterprise API (service catalog, tickets, incidents, seedable scenarios) | ✅ done |
 | 4-5 | RAG ingestion pipeline (9 runbooks -> Qdrant), embeddings, notebooks | ✅ done |
-| 6-27 | Agent graph, memory, n8n, DB models, tests, Docker, GCP, Terraform, CI/CD, docs | planned |
+| 6-7 | LangGraph agent, ReAct planning, 9 allowlisted tools | ✅ done |
+| 8-9 | Postgres conversation memory, agent/tool execution audit trail, human-approval workflow | ✅ done |
+| 10-27 | n8n, remaining DB/security work, tests, Docker, GCP, Terraform, CI/CD, docs | planned |
 
 Branching: per-phase feature branches merged into `main`; `main` deploys to
 staging once the deployment phases land, after which ongoing work moves to

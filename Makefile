@@ -1,4 +1,4 @@
-.PHONY: install up down logs test lint format rag-ingest seed agent-test clean build deploy
+.PHONY: install up down logs test lint format rag-ingest seed agent-test clean build deploy db-upgrade db-revision
 
 install:
 	./scripts/bootstrap.sh
@@ -25,6 +25,12 @@ format:
 
 rag-ingest:
 	cd agent-service && . .venv/bin/activate && python -m app.rag.pipeline
+
+db-upgrade:
+	cd agent-service && . .venv/bin/activate && alembic upgrade head
+
+db-revision:
+	cd agent-service && . .venv/bin/activate && alembic revision --autogenerate -m "$(m)"
 
 seed:
 	./scripts/seed_data.sh

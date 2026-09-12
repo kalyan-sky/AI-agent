@@ -1,6 +1,7 @@
 """Unit tests for the chunker and loader — the parts of the ingestion
 pipeline that don't need a running Qdrant or an embedding model.
 """
+
 from pathlib import Path
 
 import pytest

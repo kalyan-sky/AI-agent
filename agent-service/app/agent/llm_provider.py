@@ -62,9 +62,7 @@ class AnthropicProvider:
                 model=self._model,
                 max_tokens=2048,
                 system=system,
-                messages=cast(
-                    Any, [{"role": m.role, "content": m.content} for m in messages]
-                ),
+                messages=cast(Any, [{"role": m.role, "content": m.content} for m in messages]),
             )
         except anthropic.RateLimitError as exc:
             raise LLMTransientError(f"anthropic rate limited: {exc}") from exc

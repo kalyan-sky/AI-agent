@@ -20,6 +20,7 @@ from app.tools.deployment import GetDeploymentStatusTool
 from app.tools.gcp import GetGcpServiceStatusTool
 from app.tools.health import GetServiceHealthTool, GetServiceLogsTool
 from app.tools.knowledge import SearchKnowledgeTool
+from app.tools.remediation import DeleteResourceTool, RollbackDeploymentTool
 from app.tools.ticket import (
     CreateIncidentTool,
     CreateTicketTool,
@@ -41,12 +42,18 @@ def build_tool_registry(settings: Settings) -> dict[str, Tool]:
         UpdateTicketTool(settings),
         CreateIncidentTool(settings),
         GetGcpServiceStatusTool(settings),
+        RollbackDeploymentTool(settings),
+        DeleteResourceTool(settings),
     ]
     return {tool.name: tool for tool in tools}
 
 
 async def execute(
-    tool_name: str | None, raw_arguments: dict, tools_by_name: dict[str, Tool]
+    tool_name: str | None,
+    raw_arguments: dict,
+    tools_by_name: dict[str, Tool],
+    *,
+    bypass_approval: bool = False,
 ) -> ToolCallRecord:
     if tool_name is None:
         return ToolCallRecord(
@@ -74,7 +81,8 @@ async def execute(
             error=f"invalid arguments: {exc}",
         )
 
-    if requires_approval(tool.risk_tier):
+    approved_bypass = bypass_approval and tool.risk_tier == RiskTier.HIGH_RISK
+    if requires_approval(tool.risk_tier) and not approved_bypass:
         status = "pending_approval" if tool.risk_tier == RiskTier.HIGH_RISK else "blocked"
         logger.info(
             "tool_call_gated", tool=tool_name, risk_tier=tool.risk_tier.value, status=status

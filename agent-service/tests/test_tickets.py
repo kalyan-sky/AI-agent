@@ -2,6 +2,7 @@
 scripts/dev_native.sh + curl verification against the real mock-enterprise
 process is what proves the live integration end-to-end.
 """
+
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -40,9 +41,7 @@ async def test_get_ticket_success(client, viewer_headers):
 
 @pytest.mark.asyncio
 async def test_get_ticket_not_found(client, viewer_headers):
-    with patch.object(
-        incident_service, "_get", new=AsyncMock(return_value=_response(404))
-    ):
+    with patch.object(incident_service, "_get", new=AsyncMock(return_value=_response(404))):
         resp = await client.get("/api/v1/tickets/NOPE", headers=viewer_headers)
     assert resp.status_code == 404
 

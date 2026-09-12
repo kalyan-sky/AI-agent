@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 
 from app.agent.policies import RiskTier
 from app.config import Settings
+from app.tools import http
 from app.tools.base import Tool, ToolError
-from app.tools.health import _get
 
 
 class GetDeploymentStatusInput(BaseModel):
@@ -28,7 +28,7 @@ class GetDeploymentStatusTool(Tool[GetDeploymentStatusInput]):
     async def run(self, args: GetDeploymentStatusInput) -> dict:
         url = f"{self._settings.mock_enterprise_base_url}/services/{args.service}/deployment"
         try:
-            resp = await _get(url, self.timeout_s)
+            resp = await http.get(url, self.timeout_s)
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc
         resp.raise_for_status()

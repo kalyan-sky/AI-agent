@@ -8,15 +8,21 @@ from app.agent.graph import run as run_graph
 from app.agent.state import AgentState
 from app.api.schemas import AgentAction, AgentRunRequest, AgentRunResponse, AgentSource
 from app.config import Settings
+from app.memory import long_term
 
 logger = structlog.get_logger(__name__)
 
 
 async def run(request: AgentRunRequest, settings: Settings) -> AgentRunResponse:
+    history = await long_term.load_conversation_context(request.conversation_id, settings)
+    task_message = request.message
+    if history:
+        task_message = f"Conversation so far:\n{history}\n\nNew request: {request.message}"
+
     initial_state = AgentState(
         conversation_id=request.conversation_id,
         user_id=request.user_id,
-        message=request.message,
+        message=task_message,
         max_iterations=settings.agent_max_iterations,
     )
     try:
@@ -33,12 +39,15 @@ async def run(request: AgentRunRequest, settings: Settings) -> AgentRunResponse:
             confidence=0.0,
         )
 
+    approval_id = await long_term.save_agent_run(request.message, final_state, settings)
+
     logger.info(
         "agent_run_complete",
         conversation_id=request.conversation_id,
         status=final_state.status,
         iterations=final_state.iterations,
         tool_calls=len(final_state.actions),
+        approval_id=approval_id,
     )
 
     actions = [
@@ -68,4 +77,5 @@ async def run(request: AgentRunRequest, settings: Settings) -> AgentRunResponse:
         actions=actions,
         sources=sources,
         confidence=final_state.confidence,
+        approval_id=approval_id,
     )

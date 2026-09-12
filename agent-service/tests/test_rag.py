@@ -7,6 +7,7 @@ populated" are both exercised deterministically.
 HTTP-level tests (auth, validation) go through the real app/client since
 they don't depend on ingestion state.
 """
+
 import pytest
 from qdrant_client.http import models as qmodels
 
@@ -47,9 +48,7 @@ async def test_search_returns_hits_after_ingestion(isolated_settings):
             size=isolated_settings.embedding_dim, distance=qmodels.Distance.COSINE
         ),
     )
-    [vector] = embed_texts(
-        ["kubernetes ImagePullBackOff troubleshooting steps"], isolated_settings
-    )
+    [vector] = embed_texts(["kubernetes ImagePullBackOff troubleshooting steps"], isolated_settings)
     client.upsert(
         collection_name=isolated_settings.qdrant_collection,
         points=[

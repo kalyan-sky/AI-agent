@@ -6,6 +6,7 @@ routing concerns.
 """
 
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -59,6 +60,29 @@ class AgentRunResponse(BaseModel):
     actions: list[AgentAction] = Field(default_factory=list)
     sources: list[AgentSource] = Field(default_factory=list)
     confidence: float = 0.0
+    approval_id: int | None = None
+
+
+# --- Approvals -----------------------------------------------------------------
+
+
+class ApprovalResponse(BaseModel):
+    id: int
+    tool_execution_id: int
+    tool_name: str
+    arguments: dict
+    risk_tier: str
+    status: str  # pending | approved | rejected
+    tool_execution_status: str  # the underlying tool call's own status after the decision
+    requested_at: datetime
+    decided_at: datetime | None = None
+    decided_by: str | None = None
+    reason: str | None = None
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: Literal["approve", "reject"]
+    reason: str | None = None
 
 
 # --- RAG -----------------------------------------------------------------------
