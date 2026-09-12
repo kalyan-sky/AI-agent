@@ -1,0 +1,147 @@
+{
+  "name": "Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notify",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3c447b87-868d-4c05-b4ea-d5e28139fe1f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "3c447b87-868d-4c05-b4ea-d5e28139fe1f"
+    },
+    {
+      "parameters": {
+        "conversationId": "={{ $json.body.conversation_id }}",
+        "userId": "={{ $json.body.user_id }}",
+        "message": "={{ $json.body.message }}",
+        "timeoutMs": 100000
+      },
+      "id": "b0dfca26-09d6-4aa1-85b1-6b04947db1f2",
+      "name": "AI Agent Execute",
+      "type": "n8n-nodes-aiops-agent.aiAgentExecute",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "aiOpsAgentApi": {
+          "id": "1",
+          "name": "AI-Ops Agent API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MOCK_ENTERPRISE_BASE_URL }}/tickets",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"title\": 'Agent notification', \"description\": $json.answer, \"priority\": \"medium\" } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "66b8b498-f58d-44ac-aab9-ff9e2108af33",
+      "name": "Create Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "notes": "Placeholder for a real notification channel (e.g. Slack/email) \u2014 not wired up live in this sandbox; swap for a Slack/Email node in a real deployment."
+      },
+      "id": "7200cf0a-4cf0-4909-9ebd-74d48163077b",
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "374ecd9b-1784-41be-ade3-a14ed5ff9de5",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent Execute",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Execute": {
+      "main": [
+        [
+          {
+            "node": "Create Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Ticket": {
+      "main": [
+        [
+          {
+            "node": "Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "50d2d886-f4c6-4e23-9af2-b5db3ee5acb0"
+  },
+  "id": "74b96849-1356-45f6-b5d7-d491f746794c",
+  "tags": [
+    "ai-ops-agent"
+  ]
+}

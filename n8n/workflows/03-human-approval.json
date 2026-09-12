@@ -1,0 +1,164 @@
+{
+  "name": "Human Approval",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "302011bf-5b61-4537-a6f9-fd97519bc88b",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const item = $input.first().json;\nconst requiresApproval = item.status === 'needs_approval' && Boolean(item.approval_id);\nreturn [{ json: { ...item, requires_approval: requiresApproval } }];"
+      },
+      "id": "e3e84bd9-a330-4fb1-a314-5e1b8c16583b",
+      "name": "Risk Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.requires_approval }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "90b0ae74-0339-4ce6-af4b-a38d8b7c4872",
+      "name": "Approval Required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fd79025e-f2dd-4b54-bd9f-6bbdb468472e",
+      "name": "Wait For Decision",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        200
+      ],
+      "webhookId": "fd79025e-f2dd-4b54-bd9f-6bbdb468472e"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $credentials.aiOpsAgentApi ? $credentials.aiOpsAgentApi.baseUrl : '' }}/api/v1/approvals/{{ $json.approval_id }}/decision",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "aiOpsAgentApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.body }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "651b50b9-c239-4793-a3f7-5c70ae5f3f26",
+      "name": "Submit Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        200
+      ],
+      "credentials": {
+        "aiOpsAgentApi": {
+          "id": "1",
+          "name": "AI-Ops Agent API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Risk Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk Classification": {
+      "main": [
+        [
+          {
+            "node": "Approval Required?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Required?": {
+      "main": [
+        [
+          {
+            "node": "Wait For Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Wait For Decision": {
+      "main": [
+        [
+          {
+            "node": "Submit Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "50d2d886-f4c6-4e23-9af2-b5db3ee5acb0"
+  },
+  "id": "a75d91c0-082b-4a52-ad94-2822a0d168bc",
+  "tags": [
+    "ai-ops-agent"
+  ]
+}

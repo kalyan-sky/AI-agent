@@ -1,0 +1,144 @@
+{
+  "name": "Incident Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "incident-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "3fb4b498-31c5-4966-964e-2ebc31a30070",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "3fb4b498-31c5-4966-964e-2ebc31a30070"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const expected = $env.N8N_INCIDENT_INTAKE_SECRET;\nconst provided = $input.first().json.headers['x-webhook-secret'];\nif (!expected || provided !== expected) {\n  throw new Error('Unauthorized: missing or invalid X-Webhook-Secret header');\n}\nreturn $input.all();"
+      },
+      "id": "ba902649-64bb-4d20-bc15-761054bef36a",
+      "name": "Authenticate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json.body ?? {};\nconst required = ['conversation_id', 'user_id', 'message'];\nconst missing = required.filter((f) => !body[f] || String(body[f]).trim() === '');\nif (missing.length > 0) {\n  throw new Error(`Missing required field(s): ${missing.join(', ')}`);\n}\nreturn [{ json: body }];"
+      },
+      "id": "b0ddac2c-6d8a-4c32-9174-2539e39e3975",
+      "name": "Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conversationId": "={{ $json.conversation_id }}",
+        "userId": "={{ $json.user_id }}",
+        "message": "={{ $json.message }}",
+        "timeoutMs": 100000
+      },
+      "id": "40b65d1a-b589-4df2-9c63-50dc309e8431",
+      "name": "AI Agent Execute",
+      "type": "n8n-nodes-aiops-agent.aiAgentExecute",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "aiOpsAgentApi": {
+          "id": "1",
+          "name": "AI-Ops Agent API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "c6938bed-1793-4670-8be0-2fbdbc7c3215",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Authenticate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authenticate": {
+      "main": [
+        [
+          {
+            "node": "Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate": {
+      "main": [
+        [
+          {
+            "node": "AI Agent Execute",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Execute": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "50d2d886-f4c6-4e23-9af2-b5db3ee5acb0"
+  },
+  "id": "5439d12c-2c43-4071-869a-274797d47964",
+  "tags": [
+    "ai-ops-agent"
+  ]
+}
