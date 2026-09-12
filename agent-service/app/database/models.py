@@ -9,7 +9,7 @@ call within a run, and human approval decisions on gated tool calls.
 
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -90,6 +90,9 @@ class ToolExecution(Base):
 
 class Approval(Base):
     __tablename__ = "approvals"
+    # Matches repository.list_pending_approvals: filters status='pending',
+    # orders by requested_at — one composite index serves both.
+    __table_args__ = (Index("ix_approvals_status_requested_at", "status", "requested_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     tool_execution_id: Mapped[int] = mapped_column(

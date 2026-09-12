@@ -30,6 +30,7 @@ from app.api.schemas import (
 from app.config import Settings, get_settings
 from app.database.models import Approval
 from app.security.authorization import Role, require_role
+from app.security.rate_limit import enforce_rate_limit
 from app.services import agent_service, approval_service, incident_service, rag_service
 
 router = APIRouter()
@@ -58,7 +59,10 @@ async def ready(settings: Settings = Depends(get_settings)) -> ReadinessResponse
     "/api/v1/agent/run",
     response_model=AgentRunResponse,
     tags=["agent"],
-    dependencies=[Depends(require_role(Role.viewer))],
+    # Rate-limited (unlike the other routes below) because every call here
+    # spends real LLM tokens — the one endpoint where unbounded retries or
+    # a runaway caller directly costs money, not just CPU.
+    dependencies=[Depends(require_role(Role.viewer)), Depends(enforce_rate_limit)],
 )
 async def run_agent(
     body: AgentRunRequest, settings: Settings = Depends(get_settings)
@@ -70,7 +74,7 @@ async def run_agent(
     "/api/v1/rag/search",
     response_model=RagSearchResponse,
     tags=["rag"],
-    dependencies=[Depends(require_role(Role.viewer))],
+    dependencies=[Depends(require_role(Role.viewer)), Depends(enforce_rate_limit)],
 )
 async def search_rag(
     body: RagSearchRequest, settings: Settings = Depends(get_settings)

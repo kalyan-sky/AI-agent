@@ -51,3 +51,19 @@ async def correlation_and_access_log(request: Request, call_next):
         duration_ms=duration_ms,
     )
     return response
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """This is a JSON-only API — no page is ever rendered here — so these
+    are all safe to set unconditionally: nothing legitimately needs to
+    frame this service, sniff its responses as another content type, or
+    receive a referrer from it."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = "default-src 'none'"
+    if settings.environment != "local":
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
