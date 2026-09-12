@@ -30,7 +30,7 @@ what's built and how to run it right now.
 | 12-13 | Security hardening (fail-fast config, rate limiting, security headers) + DB indexing | ✅ done |
 | 14-16 | Error handling, Prometheus metrics, DB/Qdrant failure-path tests | ✅ done |
 | 17-19 | Docker, GCP architecture, Terraform (no Cloud SQL, no VPC connector) | ✅ done |
-| 20-21 | CI/CD (GitHub Actions) + GCP security (identity-token service-to-service auth) | 🚧 in progress |
+| 20-21 | CI/CD (GitHub Actions) + GCP security (identity-token service-to-service auth) | ✅ done |
 | 22-27 | Docs, diagrams, demo scenarios, failure injection, eval, readiness checklist | planned |
 
 Branching: per-phase feature branches merged into `main`; `main` deploys to
