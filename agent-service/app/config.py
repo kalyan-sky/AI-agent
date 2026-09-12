@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     # Mock enterprise API
     mock_enterprise_base_url: str = "http://mock-enterprise:9000"
     mock_enterprise_timeout_s: int = 10
+    # Set only in the real GCP deployment (to mock-enterprise's Cloud Run
+    # URL — see infrastructure/terraform/cloud_run.tf) so every call to it
+    # carries a Cloud Run identity token; empty everywhere else (local
+    # dev, tests, CI), where mock-enterprise has no auth of its own to
+    # satisfy anyway.
+    gcp_id_token_audience: str = ""
 
     # Agent execution limits
     agent_max_iterations: int = 8

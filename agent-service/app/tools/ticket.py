@@ -35,7 +35,9 @@ class GetTicketTool(Tool[GetTicketInput]):
     async def run(self, args: GetTicketInput) -> dict:
         url = f"{self._settings.mock_enterprise_base_url}/tickets/{args.ticket_id}"
         try:
-            resp = await http.get(url, self.timeout_s)
+            resp = await http.get(
+                url, self.timeout_s, audience=self._settings.gcp_id_token_audience
+            )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc
         if resp.status_code == 404:
@@ -64,7 +66,12 @@ class CreateTicketTool(Tool[CreateTicketInput]):
     async def run(self, args: CreateTicketInput) -> dict:
         url = f"{self._settings.mock_enterprise_base_url}/tickets"
         try:
-            resp = await http.post(url, args.model_dump(), self.timeout_s)
+            resp = await http.post(
+                url,
+                args.model_dump(),
+                self.timeout_s,
+                audience=self._settings.gcp_id_token_audience,
+            )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc
         resp.raise_for_status()
@@ -91,7 +98,12 @@ class UpdateTicketTool(Tool[UpdateTicketInput]):
     async def run(self, args: UpdateTicketInput) -> dict:
         url = f"{self._settings.mock_enterprise_base_url}/tickets/{args.ticket_id}"
         try:
-            resp = await http.patch(url, {"status": args.status}, self.timeout_s)
+            resp = await http.patch(
+                url,
+                {"status": args.status},
+                self.timeout_s,
+                audience=self._settings.gcp_id_token_audience,
+            )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc
         if resp.status_code == 404:
@@ -122,7 +134,12 @@ class CreateIncidentTool(Tool[CreateIncidentInput]):
     async def run(self, args: CreateIncidentInput) -> dict:
         url = f"{self._settings.mock_enterprise_base_url}/incidents"
         try:
-            resp = await http.post(url, args.model_dump(), self.timeout_s)
+            resp = await http.post(
+                url,
+                args.model_dump(),
+                self.timeout_s,
+                audience=self._settings.gcp_id_token_audience,
+            )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc
         resp.raise_for_status()

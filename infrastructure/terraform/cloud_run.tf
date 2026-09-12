@@ -9,15 +9,14 @@ resource "google_cloud_run_v2_service" "mock_enterprise" {
   labels   = local.labels
 
   # Never reachable from the public internet — only from inside this
-  # project's VPC or from another Cloud Run service in the same project.
-  # Its own IAM policy below then allows any caller that DOES reach it
-  # (allUsers-as-invoker) rather than checking a specific identity token,
-  # since it has no app-level auth of its own to layer under one anyway.
-  # A per-service-account invoker grant (agent-service's SA only) would
-  # be tighter, but requires agent-service's outbound HTTP client to
-  # attach a Cloud Run identity token on every call — deferred to Phase
-  # 20-21 (GCP security hardening) rather than done here as a drive-by
-  # app-code change during an infra-focused phase.
+  # project's VPC or from another Cloud Run service in the same project —
+  # AND, per the invoker binding below, only from agent-service's own
+  # service account specifically: agent-service's outbound HTTP client
+  # (app/tools/http.py) attaches a Cloud Run identity token to every call
+  # here when GCP_ID_TOKEN_AUDIENCE is set (see this service's own env
+  # block below), so this is real identity-based auth, not just a network
+  # boundary — mock-enterprise has no app-level auth of its own either
+  # way, being a self-contained mock with no real data.
   ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   template {
@@ -60,12 +59,12 @@ resource "google_cloud_run_v2_service" "mock_enterprise" {
   }
 }
 
-resource "google_cloud_run_v2_service_iam_member" "mock_enterprise_allow_internal_callers" {
+resource "google_cloud_run_v2_service_iam_member" "mock_enterprise_allow_agent_service" {
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.mock_enterprise.name
   role     = "roles/run.invoker"
-  member   = "allUsers"
+  member   = "serviceAccount:${google_service_account.agent_service.email}"
 }
 
 resource "google_cloud_run_v2_service" "agent_service" {
@@ -121,6 +120,13 @@ resource "google_cloud_run_v2_service" "agent_service" {
       }
       env {
         name  = "MOCK_ENTERPRISE_BASE_URL"
+        value = google_cloud_run_v2_service.mock_enterprise.uri
+      }
+      env {
+        # A Cloud Run identity token's audience must exactly match the
+        # target service's own URL — mock-enterprise's invoker IAM
+        # binding above only accepts a token issued for this audience.
+        name  = "GCP_ID_TOKEN_AUDIENCE"
         value = google_cloud_run_v2_service.mock_enterprise.uri
       }
 

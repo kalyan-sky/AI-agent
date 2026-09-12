@@ -42,7 +42,12 @@ class RollbackDeploymentTool(Tool[RollbackDeploymentInput]):
     async def run(self, args: RollbackDeploymentInput) -> dict:
         url = f"{self._settings.mock_enterprise_base_url}/admin/scenarios/{args.service}"
         try:
-            resp = await http.post(url, {"scenario": "healthy"}, self.timeout_s)
+            resp = await http.post(
+                url,
+                {"scenario": "healthy"},
+                self.timeout_s,
+                audience=self._settings.gcp_id_token_audience,
+            )
         except httpx.TransportError as exc:
             raise ToolError(f"mock-enterprise unreachable: {exc}") from exc
         resp.raise_for_status()
