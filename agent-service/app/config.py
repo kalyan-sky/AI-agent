@@ -90,6 +90,16 @@ class Settings(BaseSettings):
     failure_injection_enabled: bool = False
     failure_injection_target: str = ""
 
+    # Distributed tracing (OpenTelemetry) — off by default, so it's zero
+    # overhead unless explicitly enabled. "console" prints spans to
+    # stdout (local dev/demo); "otlp" ships them to otel_exporter_endpoint
+    # (a real collector, e.g. Cloud Trace's OTLP endpoint or a self-hosted
+    # Jaeger/Tempo instance — none is provisioned by this project's
+    # Terraform, since that's its own real recurring cost decision).
+    otel_enabled: bool = False
+    otel_exporter: Literal["console", "otlp"] = "console"
+    otel_exporter_endpoint: str = ""
+
     # GCP (informational; used by infra tooling, not runtime logic)
     gcp_project_id: str = ""
     gcp_region: str = "us-central1"

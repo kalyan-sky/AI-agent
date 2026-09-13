@@ -63,6 +63,52 @@ project this size. See "Cost model" below for what that leaves.
   (`.github/workflows/cd-staging.yml`) deploy without ever minting a
   service-account key.
 
+## Backup and restore
+
+**Backup is automated; restore is not — deliberately.** Taking a backup
+is safe and additive; restoring overwrites the live database, which is
+exactly the kind of irreversible action this project's own risk-tier
+policy (a CRITICAL action is never autonomous) applies to just as much
+as anything the agent itself does.
+
+- A cron job installed by the VM's startup script (`scripts/vm-startup.sh.tpl`)
+  runs `pg_dump` nightly at 03:17 UTC, gzips it, and uploads it straight
+  to the `<project_id>-ai-ops-agent-backups` GCS bucket (`backup.tf`) via
+  the VM's own service account — no gcloud SDK install needed, same
+  metadata-server-token pattern the startup script already uses for
+  secrets. That service account can only *create* objects there
+  (`roles/storage.objectCreator`), not read, overwrite, or delete an
+  existing backup — so a compromised VM can't tamper with backups made
+  before the compromise.
+- The bucket auto-expires objects after 30 days (a lifecycle rule, not a
+  retention policy against tampering) — small Postgres dumps at this
+  project's scale should stay within GCS's Always Free tier regardless.
+- **Restoring is `scripts/restore-postgres.sh`, run by a human operator**
+  from their own machine (needs `gcloud` + `psql` installed and IAM read
+  access to the backup bucket — grant that outside this Terraform config,
+  it's an operator concern, not infrastructure). Since Postgres is
+  firewalled to VPC-internal traffic only (see `network.tf`), first open
+  an IAP tunnel in a separate terminal:
+  ```bash
+  gcloud compute start-iap-tunnel ai-ops-backing-services 5432 \
+    --local-host-port=localhost:15432 --zone="$GCP_ZONE"
+  ```
+  then:
+  ```bash
+  export GCP_PROJECT_ID=... POSTGRES_PASSWORD=...  # the postgres-password secret's value
+  ./scripts/restore-postgres.sh --list
+  ./scripts/restore-postgres.sh --backup postgres/aiops-backup-<timestamp>.sql.gz
+  ```
+  The script refuses outright if stdin isn't a real terminal, and — even
+  interactively — requires typing the exact backup filename back before
+  touching anything, the same confirmation pattern
+  `agent-service/scripts/prune_old_data.py` uses for its own destructive
+  action. Verified locally in this sandbox with `gcloud`/`psql` stubbed
+  out (no real GCP project here): argument validation, the non-TTY
+  refusal, a wrong-answer abort, and a correct-answer confirmation
+  correctly reaching the restore call all confirmed — not verified
+  against a real bucket/database, which needs your actual project.
+
 ## Cost model
 
 Everything above should cost **$0/month** at low/demo traffic:

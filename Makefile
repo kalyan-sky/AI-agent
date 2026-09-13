@@ -1,4 +1,4 @@
-.PHONY: install up down logs test lint format rag-ingest seed agent-test eval clean build deploy db-upgrade db-revision
+.PHONY: install up down logs test lint format rag-ingest seed agent-test eval prune load-test clean build deploy db-upgrade db-revision
 
 install:
 	./scripts/bootstrap.sh
@@ -43,6 +43,19 @@ agent-test:
 ## is set, otherwise falls back to a FakeLLM dry run (free, mechanics only).
 eval:
 	cd agent-service && . .venv/bin/activate && python -m tests.eval_agent
+
+## Retention/pruning of old conversations — see scripts/prune_old_data.py.
+## Defaults to a dry run (reports only, deletes nothing). Pass ARGS to
+## add --confirm (interactive terminal only, by design — this is
+## deliberately never wired into a scheduled job): make prune ARGS=--confirm
+prune:
+	cd agent-service && . .venv/bin/activate && python -m scripts.prune_old_data $(ARGS)
+
+## Load test against a running agent-service (see agent-service/locustfile.py
+## and README's "Load testing" section for real local baseline numbers).
+## Pass ARGS to change users/duration: make load-test ARGS="--users 50 --run-time 60s"
+load-test:
+	cd agent-service && . .venv/bin/activate && locust -f locustfile.py --host http://127.0.0.1:8000 --headless --users 10 --spawn-rate 5 --run-time 20s $(ARGS)
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

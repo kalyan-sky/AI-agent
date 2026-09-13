@@ -14,6 +14,7 @@ resource "google_project_service" "apis" {
     "sts.googleapis.com",              # WIF
     "cloudresourcemanager.googleapis.com",
     "billingbudgets.googleapis.com", # Budget alert (only used if billing_account_id is set)
+    "storage.googleapis.com",        # Postgres backups bucket
   ])
 
   project = var.project_id

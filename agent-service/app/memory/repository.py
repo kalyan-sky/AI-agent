@@ -22,13 +22,19 @@ async def get_or_create_conversation(
         select(Conversation).where(Conversation.conversation_id == conversation_id)
     )
     conversation = result.scalar_one_or_none()
+    now = datetime.now(UTC)
     if conversation is None:
-        now = datetime.now(UTC)
         conversation = Conversation(
             conversation_id=conversation_id, user_id=user_id, created_at=now, updated_at=now
         )
         session.add(conversation)
-        await session.flush()
+    else:
+        # Otherwise updated_at only ever reflects creation time, never
+        # actual recent activity — a retention policy keyed on it would
+        # prune a conversation that's still in active use just because
+        # it started a while ago (see scripts/prune_old_data.py).
+        conversation.updated_at = now
+    await session.flush()
     return conversation
 
 
@@ -145,4 +151,34 @@ async def decide_approval(
     approval.decided_by = decided_by
     approval.decided_at = datetime.now(UTC)
     approval.reason = reason
+    await session.flush()
+
+
+async def list_conversations_older_than(
+    session: AsyncSession, cutoff: datetime
+) -> list[Conversation]:
+    """For scripts/prune_old_data.py. Excludes any conversation with a
+    still-pending approval regardless of age — deleting one would destroy
+    the audit trail for a HIGH_RISK action a human hasn't decided on yet,
+    which retention policy has no business doing silently."""
+    result = await session.execute(
+        select(Conversation)
+        .where(Conversation.updated_at < cutoff)
+        .where(
+            ~Conversation.executions.any(
+                AgentExecution.tool_executions.any(
+                    ToolExecution.approval.has(Approval.status == "pending")
+                )
+            )
+        )
+        .order_by(Conversation.updated_at)
+    )
+    return list(result.scalars().all())
+
+
+async def delete_conversation(session: AsyncSession, conversation: Conversation) -> None:
+    """Cascades to its messages, agent executions, tool executions, and
+    any decided approval — see the cascade="all, delete-orphan" settings
+    on Conversation/AgentExecution/ToolExecution in app/database/models.py."""
+    await session.delete(conversation)
     await session.flush()
