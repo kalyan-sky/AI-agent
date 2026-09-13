@@ -107,3 +107,37 @@ COMPOSE
 
 cd /opt/ai-ops-agent
 docker compose up -d
+
+# Automated backup: safe to automate (additive — a nightly upload, never
+# a read/overwrite of a live system), unlike restoring from one, which
+# stays a separate, human-invoked script (scripts/restore-postgres.sh in
+# the repo) — see infrastructure/terraform/README.md's "Backup and
+# restore" section.
+cat > /opt/ai-ops-agent/backup-postgres.sh <<'BACKUP'
+#!/usr/bin/env bash
+set -euo pipefail
+TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
+DUMP_FILE="/tmp/aiops-backup-$TIMESTAMP.sql.gz"
+
+docker compose -f /opt/ai-ops-agent/docker-compose.yml exec -T postgres \
+  pg_dump -U aiops aiops | gzip > "$DUMP_FILE"
+
+ACCESS_TOKEN=$(curl -s -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+  | jq -r '.access_token')
+
+curl -sf -X POST \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/gzip" \
+  --data-binary @"$DUMP_FILE" \
+  "https://storage.googleapis.com/upload/storage/v1/b/${backup_bucket}/o?uploadType=media&name=postgres/aiops-backup-$TIMESTAMP.sql.gz"
+
+rm -f "$DUMP_FILE"
+echo "Backed up to gs://${backup_bucket}/postgres/aiops-backup-$TIMESTAMP.sql.gz"
+BACKUP
+chmod 700 /opt/ai-ops-agent/backup-postgres.sh
+
+cat > /etc/cron.d/ai-ops-agent-backup <<'CRON'
+17 3 * * * root /opt/ai-ops-agent/backup-postgres.sh >> /var/log/ai-ops-agent-backup.log 2>&1
+CRON
+chmod 644 /etc/cron.d/ai-ops-agent-backup

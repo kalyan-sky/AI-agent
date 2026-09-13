@@ -23,6 +23,10 @@ made; later entries sometimes revise earlier ones (noted where relevant).
 | 13 | n8n workflows authored + structurally validated, not live-executed here | This sandbox's egress policy blocks n8n's own `npm install` |
 | 14 | Embedding provider abstraction (`huggingface` / `local-hash`) | HF downloads are blocked in this sandbox; never a code change to swap |
 | 15 | `LLM_PROVIDER` defaults to the cheapest option (Claude Haiku 4.5) | Cost-consciousness was an explicit project constraint |
+| 16 | Destructive operational actions (data pruning, DB restore) require the same human-confirmation gate as a HIGH_RISK agent action | The platform's own operations don't get a pass from the policy it enforces on the agent |
+| 17 | Backup is automated; restore is not | Backup is safe/additive; restore overwrites live data — irreversible, so it needs #16's gate |
+| 18 | Dependency/image vulnerability scanning is report-only; secret scanning is blocking | A leaked secret is unambiguous and actionable now; a dependency CVE often needs a major, tested version bump first |
+| 19 | Distributed tracing is off by default, and spans are unconditional | Zero overhead when disabled (an unconfigured OTel provider is a no-op); instrumented code never checks "is tracing on" itself |
 
 ## 1. A plain text-completion LLM interface, not vendor tool-calling
 
@@ -213,6 +217,105 @@ pricing at the time (via the `claude-api` skill) rather than assumed;
 Gemini/OpenRouter pricing could not be independently verified from this
 sandbox (both domains blocked) and was flagged as such rather than
 guessed.
+
+## 16-17. Human-in-the-loop for the platform's own operations, not just the agent's
+
+**Context:** This project's whole risk-tier policy exists so an LLM never
+autonomously decides to do something destructive — but a retention/
+pruning job and a database restore are exactly as destructive as a
+`rollback_deployment` call, and neither of those has an LLM anywhere
+near it. The same principle applies regardless of what's making the
+decision: a human, not automation, should be the one who confirms an
+irreversible action.
+
+**Decision:** `agent-service/scripts/prune_old_data.py` and
+`scripts/restore-postgres.sh` both: default to a dry run (report only,
+change nothing), refuse `--confirm`/deletion outright when stdin isn't a
+real interactive terminal (so neither can be accidentally wired into a
+cron job or CI step even by someone trying to), and require typing back
+an exact value (the live record count, or the backup's filename) rather
+than accepting a blanket `--yes` flag. Backup itself is the one
+exception, and deliberately so: it's additive and safe (a new object in
+a bucket, never touching existing data), so it's the one thing in this
+pair that *is* automated — a nightly cron job on the VM. Restoring FROM
+that backup goes through the same manual gate as pruning.
+
+**Consequences:** Real operational toil — a genuine emergency restore or
+a data-retention run needs a human at a keyboard, always. Judged worth
+it: the two automation shortcuts this rules out (a scheduled purge, an
+automatic restore-on-failure) are exactly the two operations where a
+false-positive trigger would be catastrophic and silent.
+
+**Verification note:** Both scripts' HITL gates are tested against real
+effects — `prune_old_data.py`'s tests run against a real Postgres and
+assert the DB either did or didn't change; `restore-postgres.sh`'s three
+paths (non-TTY refusal, wrong-answer abort, correct-answer proceeding to
+the restore call) were verified live with `gcloud`/`psql` stubbed out,
+since this sandbox has no real GCP project to restore into. Building the
+retention query also surfaced a real, independent bug:
+`Conversation.updated_at` was only ever set at creation, never bumped on
+later turns — meaning a conversation that's still actively in use could
+have looked "old" to a naive retention query. Fixed in
+`app/memory/repository.py::get_or_create_conversation`, with its own
+regression test.
+
+## 18. CI security scanning: blocking secrets, report-only dependencies/images
+
+**Context:** Added gitleaks (secret scanning), pip-audit (dependency
+vulnerabilities), and Trivy (container image vulnerabilities) to CI.
+Running pip-audit for real immediately surfaced 56 known vulnerabilities
+across `agent-service`'s pinned dependencies — mostly `langgraph`/
+`langchain-core`/its transitive deps needing major version bumps, plus
+`starlette` (via `fastapi`) needing a bump that isn't fully available
+within FastAPI's current 0.11x line. `python-jose`'s findings had a
+clean, safe patch bump (3.3.0 -> 3.5.0) and were fixed immediately,
+verified against the full test suite.
+
+**Decision:** Secret scanning is blocking — a real leaked credential is
+unambiguous and needs to stop the pipeline immediately; the one
+allowlisted finding (`.gitleaks-baseline.json`) is a triaged false
+positive (Mermaid diagram text matching a generic-API-key heuristic),
+scoped by exact fingerprint, not by file or rule. Dependency and image
+scanning are `continue-on-error: true` for now: the remaining findings
+need major-version bumps of libraries this project's own regression
+tests depend on specific behavior of (the LangGraph `recursion_limit`
+fix and the Starlette middleware-layering fix both do), so blocking
+every future PR on them would be gating on a change that deserves its
+own dedicated, tested pass — not something to force through as a
+side effect of turning a scanner on.
+
+**Consequences:** The known findings are a real, currently-accepted
+baseline, not a hidden gap — tracked here and in
+`readiness-checklist.md` rather than silently suppressed. Flip
+`continue-on-error` off once the dependency bump lands.
+
+## 19. Distributed tracing: off by default, spans unconditional
+
+**Context:** Added OpenTelemetry tracing (`app/observability/tracing.py`)
+spanning the request boundary, every outbound HTTP call, and the agent's
+own reasoning loop.
+
+**Decision:** `OTEL_ENABLED` defaults to `false`. Below that flag,
+`configure_tracing()` never touches the global `TracerProvider` at all —
+it stays OpenTelemetry's own default no-op provider, so every
+`tracer.start_as_current_span(...)` call elsewhere in the codebase (in
+`app/agent/graph.py` and `app/services/agent_service.py`) costs
+essentially nothing and produces nothing. Those call sites are
+unconditional — they never check `settings.otel_enabled` themselves —
+which is the idiomatic OTel pattern specifically so instrumented code
+doesn't need scattered feature-flag checks.
+
+**A bug this caught:** the first version wrapped individual LangGraph
+nodes in their own spans without one enclosing span for the whole
+request, so a live manual check showed each node producing its *own*
+disconnected trace instead of one connected trace per agent run — not
+useful for actually reading a trace. Fixed by wrapping the whole
+`agent_service.run()` body in one root `agent.run` span; verified live
+(and in `tests/test_tracing.py`, via a genuinely separate subprocess —
+OpenTelemetry's global `TracerProvider` can only be set once per
+process, so testing this in-process would either pollute every other
+test in the suite or silently no-op on the second `set_tracer_provider`
+call, which is exactly what happened on the first attempt at this test).
 
 ## A bug worth naming: LangGraph's `recursion_limit`
 

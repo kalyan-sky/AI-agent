@@ -29,8 +29,10 @@ from app.agent.policies import RiskTier
 from app.agent.prompts import parse_agent_json
 from app.agent.state import AgentState, Message
 from app.config import Settings
+from app.observability.tracing import get_tracer
 
 logger = structlog.get_logger(__name__)
+tracer = get_tracer(__name__)
 
 
 def build_graph(settings: Settings):
@@ -45,17 +47,26 @@ def build_graph(settings: Settings):
         }
 
     async def node_classify_intent(state: AgentState) -> dict:
-        return await classify_intent(state, llm)
+        with tracer.start_as_current_span("agent.classify_intent"):
+            return await classify_intent(state, llm)
 
     async def node_plan(state: AgentState) -> dict:
-        return await make_plan(state, llm)
+        with tracer.start_as_current_span("agent.plan"):
+            return await make_plan(state, llm)
 
     async def node_reason_and_act(state: AgentState) -> dict:
-        return await decide_next_action(state, llm, tools)
+        with tracer.start_as_current_span("agent.reason_and_act") as span:
+            span.set_attribute("agent.iteration", state.iterations)
+            return await decide_next_action(state, llm, tools)
 
     async def node_execute_tool(state: AgentState) -> dict:
-        record = await execute_tool_call(state.pending_tool, state.pending_arguments, tools_by_name)
-        return {"actions": [*state.actions, record]}
+        with tracer.start_as_current_span("agent.execute_tool") as span:
+            span.set_attribute("agent.tool", state.pending_tool or "")
+            record = await execute_tool_call(
+                state.pending_tool, state.pending_arguments, tools_by_name
+            )
+            span.set_attribute("agent.tool_status", record.status)
+            return {"actions": [*state.actions, record]}
 
     async def node_observe(state: AgentState) -> dict:
         record = state.actions[-1]

@@ -33,6 +33,11 @@ output "github_actions_service_account_email" {
   value       = google_service_account.github_actions_ci.email
 }
 
+output "postgres_backups_bucket" {
+  description = "GCS bucket the VM's nightly backup cron uploads to. Restoring from it is a manual step — see README's 'Backup and restore' section."
+  value       = google_storage_bucket.postgres_backups.name
+}
+
 output "external_secrets_needing_a_value" {
   description = "Secret IDs created empty — add a real version to each with `gcloud secrets versions add <id> --data-file=-` before deploying (see README)."
   value       = [for id in local.external_secret_ids : google_secret_manager_secret.external[id].secret_id]

@@ -5,6 +5,7 @@ and maps its final state onto the public API response schema.
 import time
 
 import structlog
+from opentelemetry.trace import Span
 
 from app.agent.graph import run as run_graph
 from app.agent.state import AgentState
@@ -12,11 +13,22 @@ from app.api.schemas import AgentAction, AgentRunRequest, AgentRunResponse, Agen
 from app.config import Settings
 from app.memory import long_term
 from app.observability.metrics import agent_run_duration_seconds, agent_runs_total
+from app.observability.tracing import get_tracer
 
 logger = structlog.get_logger(__name__)
+tracer = get_tracer(__name__)
 
 
 async def run(request: AgentRunRequest, settings: Settings) -> AgentRunResponse:
+    with tracer.start_as_current_span("agent.run") as span:
+        span.set_attribute("agent.conversation_id", request.conversation_id)
+        return await _run(request, settings, span)
+
+
+async def _run(request: AgentRunRequest, settings: Settings, span: Span) -> AgentRunResponse:
+    """The actual body, as a plain function under the one root span above —
+    every app/agent/graph.py node span created during run_graph nests
+    under this one instead of each becoming its own disconnected trace."""
     history = await long_term.load_conversation_context(request.conversation_id, settings)
     task_message = request.message
     if history:
@@ -105,6 +117,8 @@ async def run(request: AgentRunRequest, settings: Settings) -> AgentRunResponse:
         for doc in result.get("results", [])
     ]
 
+    span.set_attribute("agent.status", final_state.status)
+    span.set_attribute("agent.iterations", final_state.iterations)
     return AgentRunResponse(
         conversation_id=request.conversation_id,
         status=final_state.status,

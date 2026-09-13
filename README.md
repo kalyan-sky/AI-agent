@@ -122,6 +122,33 @@ paths live rather than only in pytest. Refused outright outside
 can never accidentally ship active. See `app/testing/failure_injection.py`
 and `tests/test_failure_injection.py`.
 
+### Load testing
+
+```
+make load-test                                            # 10 users, 20s, against localhost:8000
+make load-test ARGS="--users 50 --run-time 60s"
+```
+
+`agent-service/locustfile.py`, weighted toward the cheap LLM-free
+endpoints for the reason its own docstring gives. A real local run (10
+users, 20s, native-mode stack, no real LLM key so `/api/v1/agent/run`
+here measures overhead/auth-failure latency, not real investigation
+time):
+
+| Endpoint | Requests | p50 | p95 | Failures |
+|---|---|---|---|---|
+| `GET /health` | 112 | 3ms | 120ms | 0% |
+| `GET /ready` | 69 | 140ms | 320ms | 0% |
+| `POST /api/v1/rag/search` | 68 | 6ms | 220ms | 13% (429s) |
+| `POST /api/v1/agent/run` | 26 | 120ms | 830ms | 4% (429s) |
+
+`/ready`'s higher latency is expected — it fans out to 4 real dependency
+checks per call, unlike `/health`. Every failure was a `429` from the
+Redis-backed rate limiter (`RATE_LIMIT_REQUESTS=60` per 60s) correctly
+engaging once 10 simulated users sharing one API key exceeded that
+budget — the rate limiter working as designed under real concurrent
+load, not a bug.
+
 ### Verified locally (native mode)
 
 ```
@@ -140,7 +167,7 @@ $ curl -s localhost:8000/ready
 ]}
 
 $ cd agent-service && python -m pytest -q
-73 passed
+83 passed
 
 $ cd mock-enterprise && python -m pytest -q
 9 passed
@@ -157,8 +184,10 @@ make test
 `.github/workflows/ci.yml` runs on every push/PR: lint + typecheck + test
 for both services (against a real Postgres/Redis service container, not
 mocks), a Docker build (no push) of both images, `terraform fmt`/`validate`
-for `infrastructure/terraform`, and structural validation + a real `tsc`
-compile for the n8n workflows/custom node.
+for `infrastructure/terraform`, structural validation + a real `tsc`
+compile for the n8n workflows/custom node, secret scanning (gitleaks,
+blocking), and dependency/image vulnerability scanning (pip-audit +
+Trivy, report-only for now — see `architecture/decisions.md` for why).
 
 `.github/workflows/cd-staging.yml` deploys to Cloud Run once CI has gone
 green on `main` — never from an arbitrary branch or an unverified commit.

@@ -42,7 +42,8 @@ resource "google_compute_instance" "backing_services" {
 
   metadata = {
     startup-script = templatefile("${path.module}/scripts/vm-startup.sh.tpl", {
-      project_id = var.project_id
+      project_id    = var.project_id
+      backup_bucket = google_storage_bucket.postgres_backups.name
     })
   }
 

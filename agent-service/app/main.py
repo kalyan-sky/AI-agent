@@ -12,6 +12,7 @@ from app.api.routes import router
 from app.config import get_settings
 from app.logging import configure_logging, get_logger
 from app.observability.metrics import http_request_duration_seconds, http_requests_total
+from app.observability.tracing import configure_tracing
 
 settings = get_settings()
 configure_logging(settings.log_level)
@@ -32,6 +33,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(router)
+configure_tracing(settings, app)
 
 
 @app.middleware("http")

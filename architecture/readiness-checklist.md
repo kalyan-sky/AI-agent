@@ -19,10 +19,11 @@ Legend: ✅ done · 🟡 partial / demo-scoped · ⬜ not done
 | Service-to-service auth (GCP) | ✅ | Cloud Run identity token, audience-scoped, IAM invoker restricted to agent-service's own service account — not `allUsers` |
 | Least-privilege IAM | ✅ | 4 separate service accounts (one per Cloud Run service, one for the VM, one for CI), each granted only the secrets/registry/invoker access it needs |
 | No long-lived cloud credentials in CI | ✅ | Workload Identity Federation, scoped to one GitHub repo; no service-account key ever minted |
-| Dependency/image scanning | ⬜ | Not wired into CI — no Trivy/Grype/Dependabot equivalent yet |
-| Secret scanning in CI | ⬜ | Not wired into CI (no gitleaks/trufflehog step) |
+| Dependency/image scanning | 🟡 | pip-audit + Trivy in CI (`ci.yml`'s `dependency-scan` job); report-only for now — running it for real found 56 known findings needing major-version bumps this project's own regression tests depend on specifics of, tracked in `decisions.md` rather than rushed |
+| Secret scanning in CI | ✅ | gitleaks, blocking, full commit history — one triaged false positive allowlisted by exact fingerprint (`.gitleaks-baseline.json`), everything else fails the build |
 | Input validation | ✅ | Every tool call validated against its Pydantic schema before execution, rejected (not partially run) on failure |
 | CRITICAL action fail-safe | ✅ | Enforced at the executor, not just the API — covered by a dedicated regression test |
+| HITL for destructive platform operations | ✅ | Data retention/pruning and DB restore require the same never-automate-a-destructive-decision gate as a HIGH_RISK agent action — typed confirmation, refused outside a real interactive terminal, never wired to a schedule (see `decisions.md`) |
 
 ## Testing
 
@@ -35,7 +36,7 @@ Legend: ✅ done · 🟡 partial / demo-scoped · ⬜ not done
 | Runtime failure injection | ✅ | 5 named targets, toggleable via config, refused outside `environment=local`, each with its own live test |
 | Behavioral/quality eval | 🟡 | `tests/eval_agent.py` — real when an LLM key is configured (small real cost, not run in CI for that reason), a mechanics-only dry run otherwise |
 | RAG retrieval eval | ✅ | `notebooks/04_rag_evaluation.ipynb` — 100% hit@3 on the bundled eval set (small, hand-built — not a claim that generalizes to a much larger corpus) |
-| Load/performance testing | ⬜ | Not done — no k6/locust run against a deployed instance |
+| Load/performance testing | ✅ | `agent-service/locustfile.py` + `make load-test`; real local baseline in the root README (14-15 req/s at 10 concurrent users, native-mode stack) — not yet run against a real deployed instance, since none exists |
 | Chaos/resilience testing beyond failure injection | 🟡 | Failure injection covers single-dependency-down scenarios; no multi-failure or sustained-load chaos testing |
 
 ## Observability
@@ -46,7 +47,7 @@ Legend: ✅ done · 🟡 partial / demo-scoped · ⬜ not done
 | Metrics | ✅ | Prometheus `/metrics` — HTTP, agent-run, and tool-call counters/histograms, verified live against a running instance |
 | Health/readiness probes | ✅ | `/health` (liveness only) vs `/ready` (checks every real downstream dependency) |
 | Unhandled-exception handling | ✅ | Never leaks an internal message; still gets one access-log line and its usual response headers (a real Starlette middleware-layering bug was found and fixed here — see `decisions.md`) |
-| Distributed tracing | ⬜ | No OpenTelemetry/trace propagation across agent-service -> mock-enterprise -> LLM provider |
+| Distributed tracing | ✅ | OpenTelemetry, off by default (zero overhead), one connected trace per agent run spanning HTTP + agent reasoning + tool calls when enabled — verified live; no collector/backend provisioned (that's its own real recurring cost decision, deliberately not made here) |
 | Alerting | 🟡 | A budget alert exists (`infrastructure/terraform/billing.tf`, opt-in); no error-rate/latency alerting on the running services themselves |
 | Dashboards | ⬜ | Metrics are exposed but no Grafana/Cloud Monitoring dashboard is built |
 
@@ -60,7 +61,7 @@ Legend: ✅ done · 🟡 partial / demo-scoped · ⬜ not done
 | LLM fallback | ✅ | Optional secondary provider, engaged only after the primary's own retries are exhausted |
 | Timeouts on every network call | ✅ | httpx `timeout=` everywhere; no unbounded wait |
 | Database migrations | ✅ | Real Alembic migrations, generated via `--autogenerate` and applied against a live Postgres, not hand-written |
-| Backup/disaster recovery | ⬜ | Self-hosted Postgres on the VM has no automated backup — a real production deployment would need this (see `decisions.md`'s Cloud SQL tradeoff) |
+| Backup/disaster recovery | 🟡 | Nightly automated `pg_dump` to a dedicated GCS bucket (write-only VM access, 30-day lifecycle) is real infra, added and validated with `terraform validate`; restore is a deliberately manual, HITL-gated script (`scripts/restore-postgres.sh`) whose logic was verified live with `gcloud`/`psql` stubbed out — neither has run against a real deployment, since none exists yet |
 | Multi-region / high availability | ⬜ | Single VM, single region — an explicit cost tradeoff, not an oversight, for this project's scale |
 
 ## Scalability
@@ -99,7 +100,7 @@ Legend: ✅ done · 🟡 partial / demo-scoped · ⬜ not done
 |---|---|---|
 | PII handling | N/A | No real user PII flows through this system — it's a portfolio project against a simulated enterprise API |
 | Audit trail | ✅ | Every agent run, tool call, and approval decision persisted with who/when/what |
-| Data retention policy | ⬜ | No automated pruning of old conversations/executions — would be needed before real production use |
+| Data retention policy | ✅ | `agent-service/scripts/prune_old_data.py` — dry-run by default, HITL-gated (typed confirmation, refuses non-interactively), excludes conversations with a still-pending approval regardless of age; live-verified against a real Postgres, never scheduled automatically by design |
 | Compliance framework (SOC2, etc.) | N/A | Out of scope for a portfolio project |
 
 ## Documentation
@@ -116,10 +117,12 @@ Legend: ✅ done · 🟡 partial / demo-scoped · ⬜ not done
 ## Bottom line
 
 This is a genuinely production-*styled* system — real risk-tier policy
-enforcement, real fail-fast config validation, real failure-path testing
-against actual broken dependencies, real least-privilege IAM, a real CI
-pipeline — built to demonstrate the judgment calls a production system
-requires, not to fake having made them. The gaps above (backups, HA,
-dependency scanning, load testing, real IaC apply) are exactly the set
-of things a genuine production rollout would need on top of this, and
-are named here rather than glossed over.
+enforcement extended to the platform's own operations (never just the
+agent's), real fail-fast config validation, real failure-path and load
+testing, real least-privilege IAM, a real CI pipeline with real security
+scanning, real automated backups — built to demonstrate the judgment
+calls a production system requires, not to fake having made them. What's
+left (multi-region/HA, dashboards, a completed dependency-version
+remediation pass, and — the one that unblocks testing the rest for
+real — an actual `terraform apply`) is named here rather than glossed
+over, not hidden behind everything else that's now done.
