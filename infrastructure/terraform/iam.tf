@@ -134,10 +134,11 @@ resource "google_artifact_registry_repository_iam_member" "github_actions_pushes
 }
 
 resource "google_service_account_iam_member" "github_actions_acts_as_runtime_sas" {
-  for_each = toset([
-    google_service_account.agent_service.name,
-    google_service_account.mock_enterprise.name,
-  ])
+  for_each = {
+    agent_service   = google_service_account.agent_service.name
+    mock_enterprise = google_service_account.mock_enterprise.name
+  }
+
   service_account_id = each.value
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.github_actions_ci.email}"
